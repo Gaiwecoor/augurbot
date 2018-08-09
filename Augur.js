@@ -103,6 +103,9 @@ Handler.prototype.register = function(file = null) {
       // REGISTER UNLOAD FUNCTION
       if (load.unload) this.unloadFn.set(file, load.unload);
 
+      // RUN INIT()
+      if (load.init) load.init(this.bot);
+
     } catch(e) {
       this.errorHandler(e);
     }
@@ -243,6 +246,11 @@ Module.prototype.addEvent = function(name, handler) {
 
 Module.prototype.setUnload = function(unload) {
   this.unload = unload;
+  return this;
+};
+
+Module.prototype.setInit() = function(init) {
+  this.init = init;
   return this;
 };
 
