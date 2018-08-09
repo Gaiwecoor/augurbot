@@ -250,7 +250,7 @@ Module.prototype.setUnload = function(unload) {
   return this;
 };
 
-Module.prototype.setInit() = function(init) {
+Module.prototype.setInit = function(init) {
   this.initFunction = init;
   return this;
 };
