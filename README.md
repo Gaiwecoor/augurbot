@@ -108,8 +108,11 @@ module.exports = Module;
 In between, you can add one or more commands and event handlers, as well as a clockwork and unload function.
 
 `Module` properties include:
+
 * `config`: Contents of the config object loaded with the Handler.
+
 * `db`: The loaded database model.
+
 * `handler`: The Augur Handler which loaded the command module.
 
 All of the following methods are chainable:
@@ -145,7 +148,7 @@ Module.addEvent("eventName", function(...args) {});
 ```
 
 ### Initialization
-The `.init()` method accepts a function to run on module initialization.
+The `.init()` method accepts a function to run on the first module initialization (not on subsequent reloads).
 ```
 Module.init(function(bot) {});
 ```

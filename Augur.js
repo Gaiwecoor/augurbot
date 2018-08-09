@@ -104,7 +104,7 @@ Handler.prototype.register = function(file = null) {
       if (load.unload) this.unloadFn.set(file, load.unload);
 
       // RUN INIT()
-      if (load.init) load.init(this.bot);
+      if (load.initFunction && !load.init) load.initFunction(this.bot);
 
     } catch(e) {
       this.errorHandler(e);
@@ -225,6 +225,7 @@ const Module = function() {
   this.clockwork = null;
   this.unload = null;
   this.config = {};
+  this.init = false;
 
   return this;
 };
@@ -250,7 +251,7 @@ Module.prototype.setUnload = function(unload) {
 };
 
 Module.prototype.setInit() = function(init) {
-  this.init = init;
+  this.initFunction = init;
   return this;
 };
 
