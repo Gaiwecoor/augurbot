@@ -234,7 +234,7 @@ Module.prototype.addCommand = function(info) {
   return this;
 };
 
-Module.prototype.addClockwork = function(clockworkFunction) {
+Module.prototype.setClockwork = function(clockworkFunction) {
   this.clockwork = clockworkFunction;
   return this;
 };

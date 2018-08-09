@@ -115,9 +115,9 @@ In between, you can add one or more commands and event handlers, as well as a cl
 All of the following methods are chainable:
 
 ### Clockwork
-The function passed to the `.addClockwork()` method should return an interval which will continue to run in the background. The interval is cleared and reloaded when the module is reloaded.
+The function passed to the `.setClockwork()` method should return an interval which will continue to run in the background. The interval is cleared and reloaded when the module is reloaded.
 ```
-Module.addClockwork(function(bot) {
+Module.setClockwork(function(bot) {
   return setInterval();
 });
 ```
