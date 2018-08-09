@@ -93,7 +93,7 @@ Handler.prototype.register = function(file = null) {
       if (load.events && (load.events.size > 0)) {
         load.events.forEach((handler, event) => {
           if (!this.events.has(event)) this.events.set(event, [{file: file, handler: handler}]);
-          else this.events.get(x).push({file: file, handler: handler});
+          else this.events.get(event).push({file: file, handler: handler});
         });
       }
 
