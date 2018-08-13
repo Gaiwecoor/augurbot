@@ -147,7 +147,7 @@ Handler.prototype.start = function() {
     bot.on("message", (msg) => {
       let halt = false;
       if (this.events.has("message") && (this.events.get("message").length > 0)) {
-        Handler.events.get("message").forEach(handler => {
+        this.events.get("message").forEach(handler => {
           if (!halt) halt = handler.handler(msg);
         });
       }
@@ -241,7 +241,7 @@ Module.prototype.setClockwork = function(clockworkFunction) {
 };
 
 Module.prototype.addEvent = function(name, handler) {
-  this.events.set("name", handler);
+  this.events.set(name, handler);
   return this;
 };
 
