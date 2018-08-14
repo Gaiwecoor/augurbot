@@ -17,7 +17,6 @@ const Handler = function(config, options = {}) {
   this.db = ((this.config.db && this.config.db.model) ? require(path.resolve(process.cwd(), this.config.db.model)) : null);
   this.events = new Collection();
   this.options = options;
-  this.init = false;
   this.unloadFn = new Collection();
 
   return this;
@@ -62,7 +61,7 @@ Handler.prototype.parse = function(msg) {
   }
 };
 
-Handler.prototype.register = function(file = null) {
+Handler.prototype.register = function(file = null, data = null) {
   if (file) {
     try {
       file = path.resolve(file);
@@ -97,14 +96,14 @@ Handler.prototype.register = function(file = null) {
         });
       }
 
+      // RUN INIT()
+      if (load.init) load.init(data);
+
       // REGISTER CLOCKWORK
-      if (load.clockwork) this.clockwork.set(file, load.clockwork(this.bot));
+      if (load.clockwork) this.clockwork.set(file, load.clockwork());
 
       // REGISTER UNLOAD FUNCTION
       if (load.unload) this.unloadFn.set(file, load.unload);
-
-      // RUN INIT()
-      if (load.initFunction && !load.init) load.initFunction(this.bot);
 
     } catch(e) {
       this.errorHandler(e);
@@ -117,10 +116,11 @@ Handler.prototype.register = function(file = null) {
 Handler.prototype.reload = function(file = null) {
   if (file) {
     file = path.resolve(file);
+    let unloadData = null;
 
     try {
-      this.unload(file);
-      this.register(file);
+      unloadData = this.unload(file);
+      this.register(file, unloadData);
     }
     catch(e) {
       this.errorHandler(e);
@@ -138,10 +138,7 @@ Handler.prototype.start = function() {
       console.log(bot.user.username + (bot.shard ? ` Shard ${bot.shard.id}` : "") + " is ready!");
       console.log(`Listening to ${bot.channels.size} channels in ${bot.guilds.size} servers.`);
 
-      if (!this.init) {
-        this.init = true;
-        fulfill(this);
-      }
+      fulfill(this);
     });
 
     bot.on("message", (msg) => {
@@ -192,11 +189,14 @@ Handler.prototype.unload = function(file = null) {
       }
 
       // Clear Event Handlers
-      this.events = this.events.filter(e => e.file != file);
+      this.events.forEach((handlers, event) => {
+        this.events.set(event, handlers.filter(h => h.file != file));
+      });
 
       // Unload
+      let unloadData = null;
       if (this.unloadFn.has(file)) {
-        this.unloadFn.get(file)(this.bot);
+        unloadData = this.unloadFn.get(file)();
         this.unloadFn.delete(file);
       }
 
@@ -206,6 +206,8 @@ Handler.prototype.unload = function(file = null) {
 
       // Clear cache and reload
       delete require.cache[require.resolve(file)];
+
+      return unloadData;
     }
     catch(e) {
       this.errorHandler(e);
@@ -225,7 +227,6 @@ const Module = function() {
   this.clockwork = null;
   this.unload = null;
   this.config = {};
-  this.init = false;
 
   return this;
 };
@@ -251,7 +252,7 @@ Module.prototype.setUnload = function(unload) {
 };
 
 Module.prototype.setInit = function(init) {
-  this.initFunction = init;
+  this.init = init;
   return this;
 };
 
