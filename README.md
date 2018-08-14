@@ -118,7 +118,7 @@ In between, you can add one or more commands and event handlers, as well as a cl
 All of the following methods are chainable:
 
 ### Clockwork
-The function passed to the `.setClockwork()` method should return an interval which will continue to run in the background. The interval is cleared and reloaded when the module is reloaded.
+The function passed to the `.setClockwork()` method should return an interval which will continue to run in the background. The interval is cleared and reloaded when the module is reloaded. Note that the clockwork function is run *after* the intialization function.
 ```
 Module.setClockwork(function(bot) {
   return setInterval();
@@ -148,13 +148,13 @@ Module.addEvent("eventName", function(...args) {});
 ```
 
 ### Initialization
-The `.init()` method accepts a function to run on the first module initialization (not on subsequent reloads).
+The `.setInit(data)` method accepts a function to run on module initialization. The `data` parameter will have a `null` value on the first run, and will contain the returned by the function defined with the `.setUnload()` method on subsequent reloads of the module.
 ```
-Module.init(function(bot) {});
+Module.setInit(function(data) {});
 ```
 
 ### Unloading
 The function passed to the `.setUnload()` method will be run when unloading or reloading the module.
 ```
-Module.setUnload(function(bot) {});
+Module.setUnload(function() {});
 ```
