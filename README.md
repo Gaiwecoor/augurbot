@@ -39,13 +39,13 @@ Minimum properties in `config` include:
 
 The `options` object is optional, but may include:
 
-* `bot` (object): An object containing options to be passed to the new Discord.Client().
+* `clientOptions` (object): An object containing options to be passed to the new Discord.Client().
 
 * `commands` (array): An array of command files to load upon receiving the first `ready` event.
 
-* `errorHandler` (function): An function accepting `error` and `message` as its arguments. This will replace the default error handling function.
+* `errorHandler` (function): A function accepting `error` and `message` as its arguments. This will replace the default error handling function.
 
-* `parse` (function): A function accepting `message` as its argument, returning an object with `command` and `suffix` properties. This will replace the default parsing function. (Useful in case different servers use different prefixes, for example.)
+* `parse` (async function): An asynchronous function accepting `message` as its argument, returning an object with `command` and `suffix` properties. This will replace the default parsing function. (Useful in case different servers use different prefixes, for example.)
 
 ### Handler Properties
 
@@ -53,7 +53,7 @@ Properties of the Handler class:
 
 * `aliases`: Collection of commands, keyed by alias.
 
-* `bot`: Instance of the Discord Client.
+* `client`: Instance of the Discord Client.
 
 * `clockwork`: Collection of intervals, keyed by command file.
 
@@ -120,7 +120,7 @@ All of the following methods are chainable:
 ### Clockwork
 The function passed to the `.setClockwork()` method should return an interval which will continue to run in the background. The interval is cleared and reloaded when the module is reloaded. Note that the clockwork function is run *after* the intialization function.
 ```
-Module.setClockwork(function(bot) {
+Module.setClockwork(function() {
   return setInterval();
 });
 ```

@@ -9,7 +9,7 @@ const fs = require("fs"),
 
 const Handler = function(config, options = {}) {
   this.aliases = new Collection();
-  this.bot = new Discord.Client(options.bot);
+  this.client = new Discord.Client(options.clientOptions);
   this.clockwork = new Collection();
   this.commandCount = 0;
   this.commands = new Collection();
@@ -45,19 +45,24 @@ Handler.prototype.execute = function(command, msg, suffix) {
   }
 };
 
-Handler.prototype.parse = function(msg) {
-  if (this.options.parse) return this.options.parse(msg);
-  else {
-    let message = msg.cleanContent;
-    let prefix = this.config.prefix;
-    if (!msg.author.bot && message.startsWith(prefix)) {
-      let parse = message.slice(prefix.length).trim().split(" ");
-      let command = parse.shift().toLowerCase();
-      return {
-        command: command,
-        suffix: parse.join(" ")
-      };
-    } else return null;
+Handler.prototype.parse = async function(msg) {
+  try {
+    if (this.options.parse) return await this.options.parse(msg);
+    else {
+      let message = msg.cleanContent;
+      let prefix = this.config.prefix;
+      if (!msg.author.bot && message.startsWith(prefix)) {
+        let parse = message.slice(prefix.length).trim().split(" ");
+        let command = parse.shift().toLowerCase();
+        return {
+          command: command,
+          suffix: parse.join(" ")
+        };
+      } else return null;
+    }
+  } catch(e) {
+    this.errorHandler(e, msg);
+    return null;
   }
 };
 
@@ -74,7 +79,6 @@ Handler.prototype.register = function(file = null, data = null) {
       // REGISTER COMMANDS & ALIASES
       if (load.commands) {
         load.commands.forEach(command => {
-
           command.file = file;
 
           if (!this.commands.has(command.name))
@@ -132,39 +136,47 @@ Handler.prototype.reload = function(file = null) {
 
 Handler.prototype.start = function() {
   return new Promise((fulfill, reject) => {
-    let bot = this.bot;
+    let Client = this.client;
 
-    bot.on("ready", () => {
-      console.log(bot.user.username + (bot.shard ? ` Shard ${bot.shard.id}` : "") + " is ready!");
-      console.log(`Listening to ${bot.channels.size} channels in ${bot.guilds.size} servers.`);
+    Client.on("ready", () => {
+      console.log(Client.user.username + (Client.shard ? ` Shard ${Client.shard.id}` : "") + " is ready!");
+      console.log(`Listening to ${Client.channels.size} channels in ${Client.guilds.size} servers.`);
 
       fulfill(this);
     });
 
-    bot.on("message", (msg) => {
-      let halt = false;
-      if (this.events.has("message") && (this.events.get("message").length > 0)) {
-        this.events.get("message").forEach(handler => {
-          if (!halt) halt = handler.handler(msg);
-        });
+    Client.on("message", async (msg) => {
+      try {
+        let halt = false;
+        if (this.events.has("message") && (this.events.get("message").length > 0)) {
+          this.events.get("message").forEach(handler => {
+            if (!halt) halt = handler.handler(msg);
+          });
+        }
+        let parse = await this.parse(msg);
+        if (parse && !halt) this.execute(parse.command, msg, parse.suffix);
+      } catch(e) {
+        this.errorHandler(e, msg);
       }
-      let parse = this.parse(msg);
-      if (parse && !halt) this.execute(parse.command, msg, parse.suffix);
     });
 
-    bot.on("messageUpdate", (oldMsg, msg) => {
-      let halt = false;
-      if (this.events.has("messageUpdate") && (this.events.get("messageUpdate").length > 0)) {
-        this.events.get("messageUpdate").forEach(handler => {
-          if (!halt) halt = handler.handler(oldMsg, msg);
-        });
+    Client.on("messageUpdate", async (oldMsg, msg) => {
+      try {
+        let halt = false;
+        if (this.events.has("messageUpdate") && (this.events.get("messageUpdate").length > 0)) {
+          this.events.get("messageUpdate").forEach(handler => {
+            if (!halt) halt = handler.handler(oldMsg, msg);
+          });
+        }
+        let parse = await this.parse(msg);
+        if (parse && !halt) this.execute(parse.command, msg, parse.suffix);
+      } catch(e) {
+        this.errorHandler(e, msg);
       }
-      let parse = this.parse(msg);
-      if (parse && !halt) this.execute(parse.command, msg, parse.suffix);
     });
 
     this.config.events.forEach(event => {
-      bot.on(event, (...args) => {
+      Client.on(event, (...args) => {
         if (this.events.has(event) && (this.events.get(event).length > 0)) {
           let halt = false;
           this.events.get(event).forEach(handler => {
@@ -174,7 +186,7 @@ Handler.prototype.start = function() {
       });
     });
 
-    bot.login(this.config.token).catch(reject);
+    Client.login(this.config.token).catch(reject);
   });
 };
 
