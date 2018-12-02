@@ -177,11 +177,15 @@ Handler.prototype.start = function() {
 
     this.config.events.forEach(event => {
       Client.on(event, (...args) => {
-        if (this.events.has(event) && (this.events.get(event).length > 0)) {
-          let halt = false;
-          this.events.get(event).forEach(handler => {
-            if (!halt) halt = handler.handler(...args);
-          });
+        try {
+          if (this.events.has(event) && (this.events.get(event).length > 0)) {
+            let halt = false;
+            this.events.get(event).forEach(handler => {
+              if (!halt) halt = handler.handler(...args);
+            });
+          }
+        } catch(e) {
+          this.errorHandler(e);
         }
       });
     });
