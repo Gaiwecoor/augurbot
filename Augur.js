@@ -150,7 +150,8 @@ Handler.prototype.start = function() {
         let halt = false;
         if (this.events.has("message")) {
           for (let i = 0; i < this.events.get("message").length; i++) {
-            if (halt = await this.events.get("message")[i].handler(msg)) break;
+            halt = await this.events.get("message")[i].handler(msg);
+            if (halt) break;
           }
         }
         let parse = await this.parse(msg);
@@ -176,7 +177,7 @@ Handler.prototype.start = function() {
     });
 
     this.config.events.forEach(event => {
-      Client.on(event, (...args) => {
+      Client.on(event, async (...args) => {
         try {
           if (this.events.has(event) && (this.events.get(event).length > 0)) {
             for (let i = 0; i < this.events.get(event).length; i++) {
