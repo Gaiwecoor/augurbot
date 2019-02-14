@@ -2,6 +2,10 @@
 
 Augur is a Discord bot framework, utilizing the `discord.js` library.
 
+### Change Log
+
+As of version 1.1.6, event handlers may now be async functions.
+
 ### Installation
 
 `npm install --save augurbot`

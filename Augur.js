@@ -148,10 +148,10 @@ Handler.prototype.start = function() {
     Client.on("message", async (msg) => {
       try {
         let halt = false;
-        if (this.events.has("message") && (this.events.get("message").length > 0)) {
-          this.events.get("message").forEach(handler => {
-            if (!halt) halt = handler.handler(msg);
-          });
+        if (this.events.has("message")) {
+          for (let i = 0; i < this.events.get("message").length; i++) {
+            if (halt = await this.events.get("message")[i].handler(msg)) break;
+          }
         }
         let parse = await this.parse(msg);
         if (parse && !halt) this.execute(parse.command, msg, parse.suffix);
@@ -163,10 +163,10 @@ Handler.prototype.start = function() {
     Client.on("messageUpdate", async (oldMsg, msg) => {
       try {
         let halt = false;
-        if (this.events.has("messageUpdate") && (this.events.get("messageUpdate").length > 0)) {
-          this.events.get("messageUpdate").forEach(handler => {
-            if (!halt) halt = handler.handler(oldMsg, msg);
-          });
+        if (this.events.has("messageUpdate")) {
+          for (let i = 0; i < this.events.get("messageUpdate").length; i++) {
+            if (halt = await this.events.get("messageUpdate")[i].handler(oldMsg, msg)) break;
+          }
         }
         let parse = await this.parse(msg);
         if (parse && !halt) this.execute(parse.command, msg, parse.suffix);
@@ -179,10 +179,9 @@ Handler.prototype.start = function() {
       Client.on(event, (...args) => {
         try {
           if (this.events.has(event) && (this.events.get(event).length > 0)) {
-            let halt = false;
-            this.events.get(event).forEach(handler => {
-              if (!halt) halt = handler.handler(...args);
-            });
+            for (let i = 0; i < this.events.get(event).length; i++) {
+              if (await this.events.get(event)[i].handler(...args)) break;
+            }
           }
         } catch(e) {
           this.errorHandler(e);
