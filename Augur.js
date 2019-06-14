@@ -49,10 +49,17 @@ Handler.prototype.parse = async function(msg) {
   try {
     if (this.options.parse) return await this.options.parse(msg);
     else {
-      let message = msg.cleanContent;
+      let message = msg.content;
       let prefix = this.config.prefix;
-      if (!msg.author.bot && message.startsWith(prefix)) {
-        let parse = message.slice(prefix.length).trim().split(" ");
+      let parse;
+
+      if (msg.author.bot) parse = false;
+      else if (message.startsWith(prefix)) parse = prefix.length;
+      else if (message.startsWith(`<@${msg.client.user.id}>`)) parse = (`<@${msg.client.user.id}>`).length;
+      else if (message.startsWith(`<@!${msg.client.user.id}>`)) parse = (`<@!${msg.client.user.id}>`).length;
+
+      if (parse) {
+        parse = message.slice(parse).trim().split(" ");
         let command = parse.shift().toLowerCase();
         return {
           command: command,

@@ -45,7 +45,7 @@ The `options` object is optional, but may include:
 
 * `clientOptions` (object): An object containing options to be passed to the new Discord.Client().
 
-* `commands` (array): An array of command files to load upon receiving the first `ready` event.
+* ~~`commands` (array): An array of command files to load upon receiving the first `ready` event.~~ *Deprecated*
 
 * `errorHandler` (function): A function accepting `error` and `message` as its arguments. This will replace the default error handling function.
 
