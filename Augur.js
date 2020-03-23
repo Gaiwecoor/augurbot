@@ -170,6 +170,7 @@ Handler.prototype.start = function() {
 
     Client.on("messageUpdate", async (oldMsg, msg) => {
       try {
+        if (oldMsg.content === msg.content) return;
         let halt = false;
         if (this.events.has("messageUpdate")) {
           for (let i = 0; i < this.events.get("messageUpdate").length; i++) {
