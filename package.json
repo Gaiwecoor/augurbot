@@ -1,8 +1,8 @@
 {
   "name": "augurbot",
-  "version": "1.2.1",
+  "version": "2.0.0",
   "description": "Discord bot framework",
-  "main": "Augur.js",
+  "main": "Augur2.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -18,7 +18,7 @@
   "author": "Kevin \"Gaiwecoor\" Dixon",
   "license": "MIT",
   "homepage": "https://bitbucket.org/Gaiwecoor/augurbot#readme",
-  "dependencies": {
-    "discord.js": "^11.5.1"
+  "peerDependencies": {
+    "discord.js": "^12.2.0"
   }
 }
