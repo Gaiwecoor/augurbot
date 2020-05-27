@@ -213,6 +213,22 @@ class ModuleHandler {
     }
     return this;
   }
+
+  async unloadAll() {
+    // Remove all clockwork intervals
+    for (const [file, interval] of this.clockwork) {
+      clearInterval(interval);
+      this.clockwork.delete(file);
+    }
+    // Unload all files
+    for (const [file, unload] of this.unloads) {
+      try {
+        await unload();
+      } catch(error) {
+        this.client.errorHandler(error, "Unload: " + file);
+      }
+    }
+  }
 }
 
 /*******************
@@ -312,6 +328,17 @@ class AugurClient extends Client {
         } catch(error) { this.errorHandler(error, event + " handler."); }
       });
     }
+  }
+
+  destroy() {
+    return new Promise(async (fulfill, reject) => {
+      try {
+        await this.moduleHandler.unloadAll();
+      } catch(error) {
+        this.errorHandler(error, "Unload prior to destroying client.");
+      }
+      super.destroy().then(fulfill, reject);
+    });
   }
 
   login(token) {
