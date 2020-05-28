@@ -331,14 +331,9 @@ class AugurClient extends Client {
   }
 
   destroy() {
-    return new Promise(async (fulfill, reject) => {
-      try {
-        await this.moduleHandler.unloadAll();
-      } catch(error) {
-        this.errorHandler(error, "Unload prior to destroying client.");
-      }
-      super.destroy().then(fulfill, reject);
-    });
+    this.moduleHandler.unloadAll()
+    .catch(error => this.errorHandler(error, "Unload prior to destroying client."));
+    return super.destroy();
   }
 
   login(token) {
