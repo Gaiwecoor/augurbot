@@ -386,7 +386,7 @@ class Module {
 
 class Command {
   constructor(info, client) {
-    if (!info.name || info.process) {
+    if (!info.name || !info.process) {
       throw(new Error("Commands must have the name and process properties."));
     }
     this.name = info.name;
