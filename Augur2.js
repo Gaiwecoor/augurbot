@@ -359,7 +359,7 @@ class Module {
   }
 
   addCommand(info) {
-    this.commands.push(new Command(info));
+    this.commands.push(new Command(info, this.client));
     return this;
   }
 
@@ -412,7 +412,8 @@ class Command {
       if (await this.permissions(msg)) return await this.process(msg, suffix);
       else return;
     } catch(error) {
-      this.client.errorHandler(error, msg);
+      if (this.client) this.client.errorHandler(error, msg);
+      else console.error(error);
     }
   }
 }
