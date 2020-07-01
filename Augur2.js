@@ -273,12 +273,16 @@ class AugurClient extends Client {
     this.on("ready", async () => {
       console.log(this.user.username + (this.shard ? ` Shard ${this.shard.id}` : "") + " ready at:", Date());
       console.log(`Listening to ${this.channels.cache.size} channels in ${this.guilds.cache.size} servers.`);
-
-      if (this.events.has("ready")) {
-        for (let [file, handler] of this.events.get("ready")) {
-          halt = await handler();
-          if (halt) break;
+      try {
+        let halt = false;
+        if (this.events.has("ready")) {
+          for (let [file, handler] of this.events.get("ready")) {
+            halt = await handler();
+            if (halt) break;
+          }
         }
+      } catch(error) {
+        this.errorHandler(error, this.errorHandler(error, "Ready handler."););
       }
     });
 
