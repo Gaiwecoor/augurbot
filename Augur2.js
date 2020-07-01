@@ -282,7 +282,7 @@ class AugurClient extends Client {
           }
         }
       } catch(error) {
-        this.errorHandler(error, this.errorHandler(error, "Ready handler."););
+        this.errorHandler(error, "Ready handler.");
       }
     });
 
