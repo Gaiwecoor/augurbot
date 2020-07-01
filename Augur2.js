@@ -250,7 +250,7 @@ class AugurClient extends Client {
 
     this.augurOptions = options;
     this.config = config;
-    this.db = ((this.config.db && this.config.db.model) ? require(path.resolve(__dirname, this.config.db.model)) : null);
+    this.db = ((this.config.db && this.config.db.model) ? require(path.resolve(require('path').dirname(require.main.filename), this.config.db.model)) : null);
 
     this.errorHandler = this.augurOptions.errorHandler || defaults.errorHandler;
     this.parse = this.augurOptions.parse || defaults.parse;
@@ -258,7 +258,7 @@ class AugurClient extends Client {
     // PRE-LOAD COMMANDS
     if (this.augurOptions && this.augurOptions.commands) {
       const fs = require("fs");
-      let commandPath = path.resolve(__dirname, this.augurOptions.commands);
+      let commandPath = path.resolve(require('path').dirname(require.main.filename), this.augurOptions.commands);
       try {
         let commandFiles = fs.readdirSync(commandPath).filter(f => f.endsWith(".js"));
         for (let command of commandFiles) {
