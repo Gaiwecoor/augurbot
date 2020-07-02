@@ -8,6 +8,8 @@ As of version 2.0.0, Augur uses Discord.js v12.2.
 
 2.0.1 automatically unloads all modules prior to executing `client.destroy()`.
 
+2.0.8 includes various bugfixes.
+
 ### Installation
 
 `npm install --save augurbot discord.js`

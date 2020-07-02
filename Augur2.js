@@ -324,7 +324,7 @@ class AugurClient extends Client {
     for (let event of events) {
       this.on(event, async (...args) => {
         try {
-          if (this.events.has(event) && this.events.get(event).length > 0) {
+          if (this.events.has(event) && this.events.get(event).size > 0) {
             for (let [file, handler] of this.events.get(event)) {
               if (await handler(...args)) break;
             }
