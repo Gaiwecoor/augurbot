@@ -287,14 +287,20 @@ class AugurClient extends Client {
     });
 
     this.on("message", async (msg) => {
-      try {
-        let halt = false;
-        if (this.events.has("message")) {
-          for (let [file, handler] of this.events.get("message")) {
+      let halt = false;
+      if (this.events.has("message")) {
+        for (let [file, handler] of this.events.get("message")) {
+          try {
             halt = await handler(msg);
             if (halt) break;
+          } catch(error) {
+            this.errorHandler(error, msg);
+            halt = true;
+            break;
           }
         }
+      }
+      try {
         let parse = await this.parse(msg);
         if (parse && !halt) this.commands.execute(parse.command, msg, parse.suffix);
       } catch(error) {
@@ -303,15 +309,21 @@ class AugurClient extends Client {
     });
 
     this.on("messageUpdate", async (old, msg) => {
-      try {
-        if (old.content === msg.content) return;
-        let halt = false;
-        if (this.events.has("messageUpdate")) {
-          for (let [file, handler] of this.events.get("messageUpdate")) {
+      if (old.content === msg.content) return;
+      let halt = false;
+      if (this.events.has("messageUpdate")) {
+        for (let [file, handler] of this.events.get("messageUpdate")) {
+          try {
             halt = await handler(old, msg);
             if (halt) break;
+          } catch(error) {
+            this.errorHandler(error, msg);
+            halt = true;
+            break;
           }
         }
+      }
+      try {
         let parse = await this.parse(msg);
         if (parse && !halt) this.commands.execute(parse.command, msg, parse.suffix);
       } catch(error) {
@@ -319,17 +331,42 @@ class AugurClient extends Client {
       }
     });
 
-    let events = this.config.events.filter(event => !["message", "messageUpdate", "ready"].includes(event));
+    if (this.config.events.includes("messageReactionAdd")) {
+      this.on("messageReactionAdd" async (reaction, user) => {
+        if (this.events.has("messageReactionAdd") && this.events.get("messageReactionAdd").size > 0) {
+          if (reaction.partial) {
+            try {
+              await reaction.fetch();
+            } catch(error) {
+              this.errorHandler(error, "Fetch Message Reaction Error");
+            }
+          }
+          for (let [file, handler] of this.events.get("messageReactionAdd")) {
+            try {
+              if (await handler(reaction, user)) break;
+            } catch(error) {
+              this.errorHandler(error, "messageReactionAdd handler in " + file);
+              break;
+            }
+          }
+        }
+      });
+    }
+
+    let events = this.config.events.filter(event => !["message", "messageUpdate", "messageReactionAdd", "ready"].includes(event));
 
     for (let event of events) {
       this.on(event, async (...args) => {
-        try {
-          if (this.events.has(event) && this.events.get(event).size > 0) {
-            for (let [file, handler] of this.events.get(event)) {
+        if (this.events.has(event) && this.events.get(event).size > 0) {
+          for (let [file, handler] of this.events.get(event)) {
+            try {
               if (await handler(...args)) break;
+            } catch(error) {
+              this.errorHandler(error, event + " handler in " + file);
+              break;
             }
           }
-        } catch(error) { this.errorHandler(error, event + " handler."); }
+        }
       });
     }
   }
