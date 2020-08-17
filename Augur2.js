@@ -332,7 +332,7 @@ class AugurClient extends Client {
     });
 
     if (this.config.events.includes("messageReactionAdd")) {
-      this.on("messageReactionAdd" async (reaction, user) => {
+      this.on("messageReactionAdd", async (reaction, user) => {
         if (this.events.has("messageReactionAdd") && this.events.get("messageReactionAdd").size > 0) {
           if (reaction.partial) {
             try {
