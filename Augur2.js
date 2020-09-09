@@ -200,8 +200,12 @@ class ModuleHandler {
         }
 
         // Clear Commands and Aliases
-        this.commands = this.commands.filter(c => c.file != filepath);
-        this.commands.aliases = this.commands.aliases.filter(a => a.file != filepath);
+        for (let [name, command] of this.commands) {
+          if (command.file == filepath) this.commands.delete(name);
+        }
+        for (let [alias, command] of this.commands.aliases) {
+          if (command.file == filepath) this.commands.aliases.delete(alias);
+        }
 
         // Clear require cache
         delete require.cache[require.resolve(filepath)];
@@ -250,7 +254,7 @@ class AugurClient extends Client {
 
     this.augurOptions = options;
     this.config = config;
-    this.db = ((this.config.db && this.config.db.model) ? require(path.resolve(require('path').dirname(require.main.filename), this.config.db.model)) : null);
+    this.db = ((this.config.db && this.config.db.model) ? require(path.resolve(path.dirname(require.main.filename), this.config.db.model)) : null);
 
     this.errorHandler = this.augurOptions.errorHandler || defaults.errorHandler;
     this.parse = this.augurOptions.parse || defaults.parse;
@@ -258,7 +262,7 @@ class AugurClient extends Client {
     // PRE-LOAD COMMANDS
     if (this.augurOptions && this.augurOptions.commands) {
       const fs = require("fs");
-      let commandPath = path.resolve(require('path').dirname(require.main.filename), this.augurOptions.commands);
+      let commandPath = path.resolve(require.main ? path.dirname(require.main.filename) : process.cwd(), this.augurOptions.commands);
       try {
         let commandFiles = fs.readdirSync(commandPath).filter(f => f.endsWith(".js"));
         for (let command of commandFiles) {
