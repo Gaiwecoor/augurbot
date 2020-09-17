@@ -441,6 +441,7 @@ class Command {
     this.info = info.info || this.description;
     this.hidden = info.hidden || false;
     this.category = info.category || "General";
+    this.enabled = (info.enabled !== undefined ? info.enabled : true);
     this.permissions = info.permissions || (() => true);
     this.process = info.process;
     this.file = undefined;
@@ -450,7 +451,7 @@ class Command {
 
   async execute(msg, suffix) {
     try {
-      if (await this.permissions(msg)) return await this.process(msg, suffix);
+      if (this.enabled && await this.permissions(msg)) return await this.process(msg, suffix);
       else return;
     } catch(error) {
       if (this.client) this.client.errorHandler(error, msg);

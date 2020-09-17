@@ -148,6 +148,7 @@ Module.addCommand({
   info: "", // recommended
   hidden: false, // optional
   category: "General", // optional
+  enabled: true, // optional
   permissions: (msg) => true, // optional
   process: (msg, suffix) => {} // required
 });
