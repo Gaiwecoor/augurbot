@@ -293,6 +293,13 @@ class AugurClient extends Client {
     this.on("message", async (msg) => {
       let halt = false;
       if (this.events.has("message")) {
+        if (msg.partial) {
+          try {
+            await msg.fetch();
+          } catch(error) {
+            this.errorHandler(error, "Fetch Partial Message Error");
+          }
+        }
         for (let [file, handler] of this.events.get("message")) {
           try {
             halt = await handler(msg);
@@ -316,6 +323,13 @@ class AugurClient extends Client {
       if (old.content === msg.content) return;
       let halt = false;
       if (this.events.has("messageUpdate")) {
+        if (msg.partial) {
+          try {
+            await msg.fetch();
+          } catch(error) {
+            this.errorHandler(error, "Fetch Partial Message Update Error");
+          }
+        }
         for (let [file, handler] of this.events.get("messageUpdate")) {
           try {
             halt = await handler(old, msg);
@@ -342,7 +356,7 @@ class AugurClient extends Client {
             try {
               await reaction.fetch();
             } catch(error) {
-              this.errorHandler(error, "Fetch Message Reaction Error");
+              this.errorHandler(error, "Fetch Partial Message Reaction Error");
             }
           }
           for (let [file, handler] of this.events.get("messageReactionAdd")) {
