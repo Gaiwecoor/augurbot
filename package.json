@@ -1,6 +1,6 @@
 {
   "name": "augurbot",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Discord bot framework",
   "main": "Augur2.js",
   "scripts": {

@@ -254,7 +254,7 @@ class AugurClient extends Client {
 
     this.augurOptions = options;
     this.config = config;
-    this.db = ((this.config.db && this.config.db.model) ? require(path.resolve(path.dirname(require.main.filename), this.config.db.model)) : null);
+    this.db = ((this.config.db && this.config.db.model) ? require(path.resolve((require.main ? path.dirname(require.main.filename) : process.cwd()), this.config.db.model)) : null);
 
     this.errorHandler = this.augurOptions.errorHandler || defaults.errorHandler;
     this.parse = this.augurOptions.parse || defaults.parse;
