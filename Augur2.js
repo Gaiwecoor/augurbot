@@ -35,6 +35,17 @@ const DEFAULTS = {
       }
     }
     return null;
+  },
+  missClientPerms: (msg, perms) => {
+      try {
+          msg.channel.send(`I don't have the permissions to do that!\n(I need the following permissions: \`${perms.join(', ')}\`)`)
+      } catch (e) {
+          try {
+              msg.author.send("I don't have permission to send messages in that channel.")
+          } catch (err) {
+              return
+          }
+      }
   }
 };
 
@@ -508,6 +519,7 @@ class AugurClient extends Client {
     this.db = (this.config.db?.model ? require(path.resolve((require.main ? path.dirname(require.main.filename) : process.cwd()), this.config.db.model)) : null);
     this.errorHandler = this.augurOptions.errorHandler || DEFAULTS.errorHandler;
     this.parse = this.augurOptions.parse || DEFAULTS.parse;
+    this.missClientPerms = this.augurOptions.missClientPerms || DEFAULTS.missClientPerms
 
     // PRE-LOAD COMMANDS
     if (this.augurOptions?.commands) {
@@ -754,18 +766,25 @@ class AugurCommand {
     this.hidden = info.hidden ?? false;
     this.category = info.category;
     this.enabled = info.enabled ?? true;
-    this.permissions = info.permissions ?? (() => true);
-    this.parseParams = info.parseParams ?? false;
+    this.clientPermissions = info.clientPermissions;
     this.options = info.options ?? {};
     this.process = info.process;
+    this.ownerOnly = info.ownerOnly;
+    this.guildOnly = info.guildOnly;
+    this.dmOnly = info.dmOnly;
 
     this.client = client;
   }
 
   async execute(msg, args) {
     try {
-      if (this.enabled && await this.permissions(msg)) return await this.process(msg, args);
-      else return;
+      if(!this.enabled) return
+      if(this.ownerOnly && msg.user.id != this.client.config.ownerId) return
+      if(this.guildOnly && !msg.guild) return
+      if(this.dmOnly && msg.guild) return
+      if (!await this.permissions(msg)) return
+      if(msg.guild.member(this.client).hasPermission(this.clientPermissions)) await this.process(msg, args);
+      else await this.client.missClientPerms(interaction, this.clientPermissions)
     } catch(error) {
       if (this.client) this.client.errorHandler(error, msg);
       else console.error(error);
@@ -787,8 +806,12 @@ class AugurInteractionCommand {
     this.category = info.category;
     this.enabled = info.enabled ?? true;
     this.permissions = info.permissions ?? (() => true);
+    this.clientPermissions = info.clientPermissions;
     this.options = info.options ?? {};
     this.process = info.process;
+    this.ownerOnly = info.ownerOnly;
+    this.guildOnly = info.guildOnly;
+    this.dmOnly = info.dmOnly;
 
     this.client = client;
   }
@@ -796,7 +819,12 @@ class AugurInteractionCommand {
   async execute(interaction) {
     try {
       if (!this.enabled) return;
-      if (await this.permissions(interaction)) return await this.process(interaction);
+      if(this.ownerOnly && interaction.user.id != this.client.config.ownerId) return
+      if(this.guildOnly && !interaction.guild) return
+      if(this.dmOnly && interaction.guild) return
+      if (!await this.permissions(interaction)) return
+      if(interaction.guild.member(this.client).hasPermission(this.clientPermissions)) await this.process(interaction);
+      else await this.client.missClientPerms(interaction)
       let msg = await interaction.createResponse("❌");
       msg.delete(5000).catch(error => this.client.errorHandler(error, "Remove Response After Failed Interaction Permissions Check"));
     } catch(error) {
