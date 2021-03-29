@@ -243,7 +243,10 @@ class CommandManager extends Collection {
   register(load) {
     for (const command of load.commands) {
       try {
-        command.file = load.filepath;
+        command.file = load.file;
+        command.client = load.client;
+        if (!command.category) command.category = path.basename(command.file, ".js");
+
         if (!this.has(command.name.toLowerCase()))
           this.set(command.name.toLowerCase(), command);
         if (command.aliases.length > 0) {
@@ -369,10 +372,7 @@ class ModuleManager {
         load.config = this.client.config;
         load.db = this.client.db;
         load.client = this.client;
-        load.file = file;
-        for (const command of load.commands) {
-          if (!command.category) command.cateogry = path.basename(file, ".js");
-        }
+        load.file = filepath;
 
         // REGISTER COMMANDS & ALIASES
         this.commands.register(load);
@@ -531,12 +531,10 @@ class AugurClient extends Client {
     this.on("ready", async () => {
       console.log(`${this.user.username} ${(this.shard ? ` Shard ${this.shard.id}` : "")} ready at: ${Date()}`);
       console.log(`Listening to ${this.channels.cache.size} channels in ${this.guilds.cache.size} servers.`);
-      let halt = false;
       if (this.events.has("ready")) {
         for (let [file, handler] of this.events.get("ready")) {
           try {
-            halt = await handler();
-            if (halt) break;
+            if (await handler()) break;
           } catch(error) {
             this.errorHandler(error, `Ready Handler: ${file}`);
           }
@@ -617,7 +615,7 @@ class AugurClient extends Client {
         }
       }
       try {
-        if (!halt) await this.interactions.get(interaction.commandId)?.process(interaction);
+        if (!halt) await this.interactions.get(interaction.commandId)?.execute(interaction);
       } catch(error) {
         this.errorHandler(error, `Interaction Processing: ${interaction.commandId}`);
       }
@@ -627,16 +625,6 @@ class AugurClient extends Client {
       if (data.t == "INTERACTION_CREATE") {
         const interaction = new DiscordInteraction(this, data.d);
         this.emit("interactionCreate", interaction);
-      }
-      if (this.events.has("raw")) {
-        for (let [file, handler] of this.events.get("raw")) {
-          try {
-            if (await handler(data)) break;
-          } catch(error) {
-            this.errorHandler(error, `raw Handler: ${file}`);
-            break;
-          }
-        }
       }
     });
 
@@ -648,6 +636,13 @@ class AugurClient extends Client {
               await reaction.fetch();
             } catch(error) {
               this.errorHandler(error, "Augur Fetch Partial Message Reaction Error");
+            }
+          }
+          if (reaction.message?.partial) {
+            try {
+              await reaction.message.fetch();
+            } catch(error) {
+              this.errorHandler(error, "Augur Fetch Partial Reaction.Message Error");
             }
           }
           for (let [file, handler] of this.events.get("messageReactionAdd")) {
@@ -662,7 +657,7 @@ class AugurClient extends Client {
       });
     }
 
-    let events = (this.config?.events || []).filter(event => !["message", "messageUpdate", "interactionCreate", "messageReactionAdd", "ready", "raw"].includes(event));
+    let events = (this.config?.events || []).filter(event => !["message", "messageUpdate", "interactionCreate", "messageReactionAdd", "ready"].includes(event));
 
     for (let event of events) {
       this.on(event, async (...args) => {
@@ -717,7 +712,7 @@ class AugurModule {
   }
 
   addInteraction(info) {
-    this.interactions.push(new AugurInteractionCommand(info));
+    this.interactions.push(new AugurInteractionCommand(info, this.client));
     return this;
   }
 
