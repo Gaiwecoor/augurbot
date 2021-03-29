@@ -4,7 +4,16 @@ Augur is a Discord bot framework, utilizing the `discord.js` library.
 
 ### Change Log
 
-As of version 2.0.0, Augur uses Discord.js v12.2.
+As of version 2.3.0, Augur uses Discord.js v12.2 and requires Node 14+.
+
+2.3.0 introduces several new features:
+* AugurCommand.parseParams
+* AugurCommand.options
+* AugurInteractionCommand
+* AugurModule.addInteraction()
+* DiscordInteraction
+* DiscordInteractionResponse
+* ModuleManager.InteractionManager
 
 2.0.1 automatically unloads all modules prior to executing `client.destroy()`.
 
@@ -16,7 +25,7 @@ As of version 2.0.0, Augur uses Discord.js v12.2.
 
 ---
 
-## The Augur Handler
+## The Augur Client
 
 Within your base file, require `augurbot` and create a new instance of `AugurClient`:
 ```
@@ -60,44 +69,58 @@ The `options` object is optional, but may include:
 
 ### AugurClient Properties
 
-Properties of the Handler class:
+Properties of the AugurClient class:
 
 * `augurOptions` (object): The options object passed to the client upon initialization.
 
-* `clockwork` (ClockworkHandler extends Collection):
+* `clockwork` (ClockworkManager extends Collection):
 
   A collection of functions to be run by an interval.
-  * `register(Module)`: Registers clockwork functions from a Module. Automatically called by `client.moduleHandler.register(Module)`.
+  * `register(AugurModule)`: Registers clockwork functions from a Module. Automatically called by `client.moduleHandler.register(AugurModule)`.
   * `unload(filepath)`: Unload a clockwork function from memory. Automatically called by `client.moduleHandler.unload(filepath)`.
 
-* `commands` (CommandHandler extends Collection):
+* `commands` (CommandManager extends Collection):
 
   A collection of commands, keyed by command name.
   * `aliases` (Collection): Collection of commands, keyed by alias.
   * `client` (AugurClient): The client.
   * `commandCount` (Number): Integer of how many commands have been executed via `commands.execute()`.
   * `execute(commandName, message, suffix)` (async function): Execute a command function. Automatically called by the event handler.
-  * `register(Module)` (function): Registers commands from a Module. Automatically called by `client.moduleHandler.register(Module)`.
+  * `register(AugurModule)` (function): Registers commands from a Module. Automatically called by `client.moduleHandler.register(AugurModule)`.
 
-* `config`: The `config` object passed to the Handler.
+* `config`: The `config` object passed to the AugurClient.
 
 * `db`: Your loaded database model.
 
-* `events` (EventHandler extends Collection):
+* `events` (EventManager extends Collection):
 
   A collection of event handlers, keyed by event then keyed by filepath.
-  * `register(Module)`: Registers event handlers from a Module. Automatically called by `client.moduleHandler.register(Module)`.
+  * `register(AugurModule)`: Registers event handlers from a Module. Automatically called by `client.moduleHandler.register(AugurModule)`.
 
-* `moduleHandler` (ModuleHandler):
+* `interactions` (InteractionManager extends Collection):
 
-  Helper functions for loading/unloading/reloading Augur Modules.
-  * `register(Module, data)`: Register the module with optional data.
-  * `reload(filepath)`: Reload a module from a filepath, reregistering the module with data supplied by the command's `.unload()` function.
+  A collection of interaction event handlers for slash commands, keyed by interaction id.
+  **NOTE:** As of Augur 2.3.0, Augur does *not* handle creating the data object to create or edit an interaction. See the [Discord Developer Portal](https://discord.com/developers/docs/interactions/slash-commands#registering-a-command) for details on the data object required to register a command.
+  * `register(AugurModule)` (function): Registers interaction commands from a Module. Automatically called by `client.moduleHandler.register(AugurModule)`.
+  * `createGlobalCommand(data)` (function): Registers a new global slash command with Discord.
+  * `createGuildCommand(guildId, data)` (function): Registers a new guild slash command with Discord.
+  * `deleteGlobalCommand(commandId)` (function): Deletes an existing global slash command with Discord.
+  * `deleteGuildCommand(guildId, commandId)` (function): Deletes an existing guild slash command with Discord.
+  * `editGlobalCommand(commandId, data)` (function): Edits an existing global slash command with Discord.
+  * `editGuildCommand(guildId, commandId, data)` (function): Edits an existing guild slash command with Discord.
+  * `getGlobalCommands(commandId)` (function): Fetches an array of all global slash commands (when no `commandId` provided) or a single global slash command (when `commandId` provided).
+  * `getGuildCommands(guildId, commandId)` (function): Fetches an array of all guild slash commands (when no `commandId` provided) or a single guild slash command (when `commandId` provided).
+
+* `moduleHandler` (ModuleManager):
+
+  Helper methods for loading/unloading/reloading Augur AugurModules.
+  * `register(AugurModule, data)`: Register the module with optional data.
+  * `reload(filepath)`: Reload a module from a filepath, reregistering the module with data supplied by the command's `.unload()` method.
   * `unload(filepath)`: Unload a module from memory.
 
 ### AugurClient Methods
 
-Methods of the Handler class:
+Methods of the AugurClient class:
 
 * `errorHandler(error, message)`: Error handling function.
 
@@ -112,7 +135,7 @@ The basic file structure:
 const Augur = require("augurbot");
 const Module = new Augur.Module();
 
-// Add commands, event handlers, etc. as necessary.
+// Add commands, interactions, event handlers, etc. as necessary.
 
 module.exports = Module;
 ```
@@ -121,7 +144,7 @@ In between, you can add one or more commands and event handlers, as well as a cl
 
 `Module` properties include:
 
-* `config`: Contents of the config object loaded with the Handler.
+* `config`: Contents of the config object loaded with the AugurClient.
 
 * `db`: The loaded database model.
 
@@ -138,27 +161,72 @@ Module.setClockwork(function() {
 ```
 
 ### Commands
-The `.addCommand()` function defines a new bot command.
+The `.addCommand()` method defines a new bot command.
 ```
 Module.addCommand({
-  name: "commandname", // required
-  aliases: [], // optional
-  syntax: "", // optional
-  description: "", // recommended
-  info: "", // recommended
-  hidden: false, // optional
-  category: "General", // optional
-  enabled: true, // optional
-  permissions: (msg) => true, // optional
-  process: (msg, suffix) => {} // required
+  name: "commandname",
+  process: async (msg, suffix) => {},
+  aliases: [],
+  category: "",
+  description: "",
+  enabled: true,
+  hidden: false,
+  info: "",
+  options: {},
+  parseParams: false,
+  permissions: async (msg) => {},
+  syntax: ""
 });
 ```
+* `name` (string): Required. A string for the name of the command.
+* `process` (function): Required. The function to run when the command is invoked. This accepts either:
+  * If `parseParams` is `false`, (message, suffix); a `Discord.Message` object and a `suffix` string of the remainder of the command supplied by the user; or
+  * If `parseParams` is `true`, (message, ...params); a `Discord.Message` object and a list of parameters suppried by the user.
+* `aliases` (array of strings): An array of strings that can can be used as alternate names for the command.
+* `category` (string): A category name, for convenience in organizing commands. Defaults to the filename of the module.
+* `description` (string): A short string for a brief overview of the command.
+* `enabled` (boolean): Whether the command is able to run. Defaults to `true`.
+* `hidden` (boolean): A boolean for whether you want to hide the command in your help functions. Defaults to `false`.
+* `info` (string): A longer string with more details about the command's usage.
+* `options` (object): An object of custom options that the developer may wish to use (e.g. in parsing messages).
+* `parseParams` (boolean): Determines whether to split the command suffix before passing the parameters to the `process` function. Defaults to `false`.
+* `permissions` (function): A function used to determine whether the user has permission to run the command. Accepts a `Discord.Message` object.
+* `syntax` (string): A string describing command syntax.
 
 ### Events
 The `.addEvent()` method adds an event handler for the various Discord.js events.
 ```
 Module.addEvent("eventName", function(...args) {});
 ```
+
+### Interactions
+The `.addInteraction()` method defines an interaction for slash commands.
+```
+Module.addInteraction({
+  id: "interactionId",
+  process: async (interaction) => {},
+  category: "",
+  description: "",
+  enabled: true,
+  hidden: false,
+  info: "",
+  name: "slashCommandName",
+  options: {},
+  permissions: async (interaction) => {},
+  syntax: ""
+});
+```
+* `id` (string): Required. The interaction ID for the slash command.
+* `process` (function): Required. The function to run when the slash command is invoked. This accepts a DiscordInteraction object.
+* `category` (string): A category name, for convenience in organizing slash commands. Defaults to the filename of the module.
+* `description` (string): A short string for a brief overview of the slash command.
+* `enabled` (boolean): Whether the slash command is able to run. Defaults to `true`.
+* `hidden` (boolean): A boolean for whether you want to hide the slash command in your help functions. Defaults to `false`.
+* `info` (string): A longer string with more details about the slash command's usage.
+* `name`  (string): The name of the slash command.
+* `options` (object): An object of custom options that the developer may wish to use (e.g. in parsing messages).
+* `permissions` (function): A function used to determine whether the user has permission to run the slash command. Accepts a `DiscordInteraction` object.
+* `syntax` (string): A string describing command syntax.
 
 ### Initialization
 The `.setInit(data)` method accepts a function to run on module initialization. The `data` parameter will have a `null` value on the first run, and will contain the returned by the function defined with the `.setUnload()` method on subsequent reloads of the module.
@@ -171,3 +239,33 @@ The function passed to the `.setUnload()` method will be run when unloading or r
 ```
 Module.setUnload(function() {});
 ```
+
+## Supplemental Classes
+As of Augur 2.3.0, Discord.js does not yet support interactions (slash commands). Once Discord.js supports interactions, the following will likely be removed in favor of official library support. As a temporary fix, the following classes are used within Augur to facilitate slash command use:
+
+### DiscordInteraction
+A `DiscordInteraction` represents the data object provided by the Discord API on the `interactionCreate` event. See the [Discord Developer Portal](https://discord.com/developers/docs/interactions/slash-commands#interaction) for additional information. Properties and methods include:
+* `client` (AugurClient): The Client that received the interaction.
+* `id` (snowflake): id of the interaction
+* `type` (InteractionType): the type of the interaction
+* `data` (ApplicationCommandInteractionData): the command data payload
+* `name` (string): the name of the interaction being used, found in `.data.name`
+* `commandId` (snowflake): the id of the interaction being used, found in `.data.id`
+* `options` (array): options found in `.data.options`
+* `guild` (Discord.Guild): the Guild object representing the Guild where the command was run, if found
+* `channel` (Discord.Channel): the Channel object representing the Channel where the command was run, if found
+* `member` (Discord.GuildMember): the GuildMember object representing the member running the command, if in a Guild
+* `user` (Discord.User): the User object representing the user running the command, if found
+* `token` (string): a continuation token for responding to the interaction
+* `version` (int) always `1`
+* `deferred` (boolean): whether the interaction has been "deferred" and waiting for a full response.
+
+* `defer()`: Defers the interaction response
+* `createResponse(content, options)`: Creates an initial response or edits a deferred response.
+* `createFollowup(content, options)`: Creates a followup response.
+* `deleteResponse(response)`: Deletes the identified interaction response, deleting the original response if no response/id is passed to the method.
+* `editResponse(content, options, response)`: Edits the identified interaction response, editing the original response if no response/id is passed to the method.
+
+### DiscordInteractionResponse extends Discord.Message
+* `interaction` (DiscordInteraction): The interaction to which the response is related.
+* `followup(content, options)`: Convenience method calling `DiscordInteraction.createFollowup(content, options)`.
