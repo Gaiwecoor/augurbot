@@ -100,20 +100,20 @@ class DiscordInteraction {
       const response = {
         type: 4,
         data: {
-          tts: false,
+          tts: options.tts ?? false,
           content,
           embeds: options.embeds,
           allowed_mentions: options.allowed_mentions,
           flags: options.flags
         }
       };
-      let apiReponse = await this._call(url, response, "post");
-      return new DiscordInteractionResponse(this, apiReponse);
+      let apiResponse = await this._call(url, response, "post");
+      return new DiscordInteractionResponse(this, apiResponse);
     }
   }
 
   async createFollowup(content, options = {}) {
-    let url = `/webhooks/${this.client.user.id}/${this.token}`;
+    let url = `/webhooks/${this.client.applicationId}/${this.token}`;
 
     if (typeof content != "string") {
       options = content;
@@ -134,14 +134,19 @@ class DiscordInteraction {
     return new DiscordInteractionResponse(this, apiReponse);
   }
 
-  async deleteResponse(message = "@original") {
-    let url = `/webhooks/${this.client.user.id}/${this.token}/messages/${(message.id ? message.id : message)}`;
-    let apiResponse = await this._call(url, undefined, "delete");
-    return message;
+  deleteResponse(message = "@original", timeout = 0) {
+    return new Promise((fulfill, reject) => {
+      try {
+        setTimeout(() => {
+          let url = `/webhooks/${this.client.applicationId}/${this.token}/messages/${(message.id ? message.id : message)}`;
+          let apiResponse = this._call(url, undefined, "delete").then(fulfill, reject);
+        }, timeout);
+      } catch(e) { reject(e); }
+    });
   }
 
   async editResponse(content, options = {}, message = "@original") {
-    let url = `/webhooks/${this.client.user.id}/${this.token}/messages/${(message.id ? message.id : message)}`;
+    let url = `/webhooks/${this.client.applicationId}/${this.token}/messages/${(message.id ? message.id : message)}`;
 
     if (typeof content != "string") {
       options = content;
@@ -287,7 +292,7 @@ class InteractionManager extends Collection {
   async _call(url, data, method = "get") {
     return (await axios({
       url,
-      baseURL: `https://discord.com/api/v8/applications/${this.client.user.id}`,
+      baseURL: `https://discord.com/api/v8/applications/${this.client.applicationId}`,
       method,
       headers: { "Authorization": `Bot ${this.client.token}` },
       data
@@ -527,7 +532,12 @@ class AugurClient extends Client {
       }
     }
 
+
     // SET EVENT HANDLERS
+    this.once("ready", async () => {
+      this.applicationId = (await this.fetchApplication()).id;
+    });
+
     this.on("ready", async () => {
       console.log(`${this.user.username} ${(this.shard ? ` Shard ${this.shard.id}` : "")} ready at: ${Date()}`);
       console.log(`Listening to ${this.channels.cache.size} channels in ${this.guilds.cache.size} servers.`);
@@ -805,4 +815,16 @@ class AugurInteractionCommand {
 **  EXPORTS  **
 **************/
 
-module.exports = {AugurClient, Module: AugurModule};
+module.exports = {
+  AugurClient,
+  AugurCommand,
+  AugurInteractionCommand,
+  Module: AugurModule,
+  DiscordInteraction,
+  DiscordInteractionResponse,
+  ClockworkManager,
+  CommandManager,
+  EventManager,
+  InteractionManager,
+  ModuleManager
+};
