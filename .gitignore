@@ -1,6 +1,4 @@
 node_modules
 *test*
-config.json
-commands
-utils
+examples
 *-.js

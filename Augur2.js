@@ -270,8 +270,8 @@ class EventManager extends Collection {
   register(load) {
     if (load.events?.size > 0) {
       for (const [event, handler] of load.events) {
-        if (!this.has(event)) this.set(event, new Collection([[load.filepath, handler]]));
-        else this.get(event).set(load.filepath, handler);
+        if (!this.has(event)) this.set(event, new Collection([[load.file, handler]]));
+        else this.get(event).set(load.file, handler);
       }
     }
     return this;
@@ -663,6 +663,7 @@ class AugurClient extends Client {
       this.on(event, async (...args) => {
         if (this.events.get(event)?.size > 0) {
           for (let [file, handler] of this.events.get(event)) {
+            console.log({event, file});
             try {
               if (await handler(...args)) break;
             } catch(error) {
