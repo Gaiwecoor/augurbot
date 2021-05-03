@@ -205,7 +205,7 @@ class ClockworkManager extends Collection {
   }
 
   register(load) {
-    if (load.clockwork) this.set(load.filepath, load.clockwork());
+    if (load.clockwork) this.set(load.file, load.clockwork());
     return this;
   }
 
