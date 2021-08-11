@@ -1,14 +1,17 @@
 const {Intents} = require("discord.js");
 
 const Events = new Map()
+  //.set("applicationCommandCreate", null)
+  //.set("applicationCommandDelete", null)
+  //.set("applicationCommandUpdate", null)
   .set("channelCreate", "GUILDS")
   .set("channelDelete", "GUILDS")
   .set("channelPinsUpdate", "GUILDS")
   .set("channelUpdate", "GUILDS")
   //.set("debug", null)
-  .set("emojiCreate", "GUILD_EMOJIS")
-  .set("emojiDelete", "GUILD_EMOJIS")
-  .set("emojiUpdate", "GUILD_EMOJIS")
+  .set("emojiCreate", "GUILD_EMOJIS_AND_STICKERS")
+  .set("emojiDelete", "GUILD_EMOJIS_AND_STICKERS")
+  .set("emojiUpdate", "GUILD_EMOJIS_AND_STICKERS")
   //.set("error", null)
   .set("guildBanAdd", "GUILD_BANS")
   .set("guildBanRemove", "GUILD_BANS")
@@ -16,6 +19,7 @@ const Events = new Map()
   .set("guildDelete", "GUILDS")
   .set("guildIntegrationsUpdate", "GUILD_INTEGRATIONS")
   .set("guildMemberAdd", "GUILD_MEMBERS")
+  .set("guildMemberAvailable", "GUILD_MEMBERS")
   .set("guildMemberRemove", "GUILD_MEMBERS")
   .set("guildMembersChunk", "GUILD_MEMBERS")
   .set("guildMemberSpeaking", "GUILD_VOICE_STATES")
@@ -25,7 +29,10 @@ const Events = new Map()
   //.set("invalidated", null)
   .set("inviteCreate", "GUILD_INVITES")
   .set("inviteDelete", "GUILD_INVITES")
+  //.set("interactionCreate", null)
+  //.set("invalidRequestWarning", null)
   .set("message", "GUILD_MESSAGES")
+  .set("messageCreate", "GUILD_MESSAGES")
   .set("messageDelete", "GUILD_MESSAGES")
   .set("messageDeleteBulk", "GUILD_MESSAGES")
   .set("messageReactionAdd", "GUILD_MESSAGE_REACTIONS")
@@ -44,6 +51,17 @@ const Events = new Map()
   //.set("shardReady", null)
   //.set("shardReconnecting", null)
   //.set("shardResume", null)
+  .set("stageInstanceCreate", "GUILDS")
+  .set("stageInstanceDelete", "GUILDS")
+  .set("stageInstanceUpdate", "GUILDS")
+  .set("stickerCreate", "GUILD_EMOJIS_AND_STICKERS")
+  .set("stickerDelete", "GUILD_EMOJIS_AND_STICKERS")
+  .set("stickerUpdate", "GUILD_EMOJIS_AND_STICKERS")
+  .set("threadCreate", "GUILDS")
+  .set("threadDelete", "GUILDS")
+  .set("threadListSync", "GUILDS")
+  .set("threadMembersUpdate", "GUILD_MEMBERS")
+  .set("threadUpdate", "GUILDS")
   .set("typingStart", "GUILD_MESSAGE_TYPING")
   .set("userUpdate", "GUILD_PRESENCES")
   .set("voiceStateUpdate", "GUILD_VOICE_STATES")
@@ -54,8 +72,9 @@ function calcIntent(clientEvents, dms = true) {
   const intents = new Intents();
 
   for (const clientEvent of clientEvents) {
-    if (Events.has(clientEvent)) {
-      intents.add(Events.get(clientEvent));
+    let intent = Events.get(clientEvent);
+    if (intent && !intents.has(intent)) {
+      intents.add(intent);
     }
   }
 

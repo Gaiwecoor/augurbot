@@ -1,7 +1,6 @@
 const fs = require("fs"),
   Discord = require("discord.js"),
-  {Collection, Client, Message} = Discord,
-  axios = require("axios"),
+  {Collection, Client, Message} = require("discord.js"),
   path = require("path");
 
 /************************
@@ -11,7 +10,7 @@ const fs = require("fs"),
 const DEFAULTS = {
   errorHandler: (error, msg) => {
     console.error(Date());
-    if (msg instanceof Discord.Message) {
+    if (msg instanceof Message) {
       console.error(`${msg.author.username} in ${(msg.guild ? (`${msg.guild.name} > ${msg.channel.name}`) : "DM")}: ${msg.cleanContent}`);
     } else if (msg) {
       console.error(msg);
@@ -38,160 +37,12 @@ const DEFAULTS = {
   }
 };
 
-/*********************
-**  SUPPORT CLASSES **
-*********************/
-
-class DiscordInteraction {
-  constructor(client, data) {
-    this.client = client;
-    this.id = data.id;
-    this.type = data.type;
-
-    this.data = data.data;
-    this.name = data.data?.name;
-    this.commandId = data.data?.id;
-    this.options = data.data?.options;
-
-    this.guild = this.client.guilds.cache.get(data.guild_id);
-    this.channel = this.client.channels.cache.get(data.channel_id);
-    this.member = this.guild?.members.cache.get(data.member?.user.id);
-    this.user = this.member?.user || this.client.users.cache.get(data.user?.id);
-    this.token = data.token;
-    this.version = data.version;
-
-    this.deferred = null;
-  }
-
-  async _call(url, data, method = "get") {
-    return (await axios({
-      url,
-      baseURL: "https://discord.com/api/v8/",
-      method,
-      headers: { "Authorization": `Bot ${this.client.token}` },
-      data
-    }))?.data;
-  }
-
-  async defer() {
-    const data = {
-      type: 5
-    };
-    let apiResponse = await this._call(`/interactions/${this.id}/${this.token}/callback`, data, "post");
-    this.deferred = true;
-    return true;
-  }
-
-  async createResponse(content, options = {}) {
-    if (this.deferred) {
-      return await this.editResponse(content, options);
-    } else {
-      let url = `/interactions/${this.id}/${this.token}/callback`;
-
-      if (typeof content != "string") {
-        options = content;
-        content = "";
-      };
-      if (options.allowed_mentions === undefined) {
-        options.allowed_mentions = {
-          parse: ["users"]
-        };
-      }
-      const response = {
-        type: 4,
-        data: {
-          tts: options.tts ?? false,
-          content,
-          embeds: options.embeds,
-          allowed_mentions: options.allowed_mentions,
-          flags: options.flags
-        }
-      };
-      let apiResponse = await this._call(url, response, "post");
-      return new DiscordInteractionResponse(this, apiResponse);
-    }
-  }
-
-  async createFollowup(content, options = {}) {
-    let url = `/webhooks/${this.client.applicationId}/${this.token}`;
-
-    if (typeof content != "string") {
-      options = content;
-      content = "";
-    }
-    if (options.allowed_mentions === undefined) {
-      options.allowed_mentions = {
-        parse: ["users"]
-      };
-    }
-    const response = {
-      content,
-      embeds: options.embeds,
-      file: options.file,
-      allowed_mentions: options.allowed_mentions,
-    };
-    let apiReponse = await this._call(url, response, "post");
-    return new DiscordInteractionResponse(this, apiReponse);
-  }
-
-  deleteResponse(message = "@original", timeout = 0) {
-    return new Promise((fulfill, reject) => {
-      try {
-        setTimeout(() => {
-          let url = `/webhooks/${this.client.applicationId}/${this.token}/messages/${(message.id ? message.id : message)}`;
-          let apiResponse = this._call(url, undefined, "delete").then(fulfill, reject);
-        }, timeout);
-      } catch(e) { reject(e); }
-    });
-  }
-
-  async editResponse(content, options = {}, message = "@original") {
-    let url = `/webhooks/${this.client.applicationId}/${this.token}/messages/${(message.id ? message.id : message)}`;
-
-    if (typeof content != "string") {
-      options = content;
-      content = "";
-    };
-    if (options.allowed_mentions === undefined) {
-      options.allowed_mentions = {
-        parse: ["users"]
-      };
-    }
-    const response = {
-      content,
-      embeds: options.embeds,
-      file: options.file,
-      allowed_mentions: options.allowed_mentions,
-    };
-    let apiReponse = await this._call(url, response, "patch");
-    return new DiscordInteractionResponse(this, apiReponse);
-  }
-}
-
-class DiscordInteractionResponse extends Message {
-  constructor(interaction, data) {
-    let channel = interaction.client.channels.cache.get(data.channel_id);
-    super(interaction.client, data, channel);
-    this.interaction = interaction;
-  }
-
-  delete(options = {}) {
-    return new Promise((fulfill, reject) => {
-      setTimeout((msg) => {
-        try {
-          fulfill(this.interaction.deleteResponse(this));
-        } catch(error) { reject(error); }
-      }, options?.timeout || 0);
-    });
-  }
-
-  edit(content, options) {
-    return this.interaction.editResponse(content, options, this);
-  }
-
-  followup(content, options) {
-    return this.interaction.createFollowup(content, options);
-  }
+function wait(t) {
+  return new Promise((fulfill, reject) => {
+    setTimeout(() => {
+      fulfill();
+    }, t);
+  });
 }
 
 /***************
@@ -259,7 +110,7 @@ class CommandManager extends Collection {
             this.aliases.set(alias.toLowerCase(), command);
         }
       } catch(error) {
-        this.client.errorHandler(error, `Register command "${command.name}" in ${load.filepath}`);
+        this.client.errorHandler(error, `Register command "${command.name}" in ${load.file}`);
       }
     }
     return this;
@@ -283,73 +134,43 @@ class EventManager extends Collection {
   }
 }
 
-class InteractionManager extends Collection {
+class InteractionManager {
   constructor(client) {
-    super();
+    this.commands = new Collection();
+    this.handlers = new Collection();
     this.client = client;
   }
 
-  async _call(url, data, method = "get") {
-    return (await axios({
-      url,
-      baseURL: `https://discord.com/api/v8/applications/${this.client.applicationId}`,
-      method,
-      headers: { "Authorization": `Bot ${this.client.token}` },
-      data
-    })).data;
+  clearCustomHandler(customId) {
+    this.handlers.delete(customId);
+    return this;
   }
 
   register(load) {
-    for (const interaction of load.interactions) {
+    for (const interaction of load.interactionCommands) {
       try {
         interaction.file = load.file;
-        if (this.has(interaction.id)) this.client.errorHandler(`Duplicate Interaction ID: ${interaction.id}`, `Interaction id ${interaction.id} already registered in \`${this.get(interaction.id).file}\`. It is being overwritten.`);
-        this.set(interaction.id, interaction);
+        if (this.commands.has(interaction.commandId)) this.client.errorHandler(`Duplicate Interaction Id: ${interaction.commandId}`, `Interaction id ${interaction.commandId} already registered in \`${this.commands.get(interaction.commandId).file}\`. It is being overwritten.`);
+        this.commands.set(interaction.commandId, interaction);
       } catch(error) {
-        this.client.errorHandler(error, `Register interaction "${interaction.name}" in guild ${interaction.guild} in ${load.filepath}`);
+        this.client.errorHandler(error, `Register interaction "${interaction.name}" in guild ${interaction.guild} in ${load.file}`);
+      }
+    }
+    for (const handler of load.interactionHandlers) {
+      try {
+        handler.file = load.file;
+        if (this.handlers.has(handler.customId)) this.client.errorHandler(`Duplicate Interaction Custom Id: ${handler.customId}`, `Interaction Custom Id ${handler.customId} already registered in \`${this.handlers.get(handler.customId).file}\`. It is being overwritten.`);
+        this.handlers.set(handler.customId, handler);
+      } catch(error) {
+        this.client.errorHandler(error, `Register Interaction Custom Id "${handler.customId}" in ${load.file}`);
       }
     }
     return this;
   }
 
-  /*******************************
-  **  GLOBAL COMMAND ENDPOINTS  **
-  *******************************/
-
-  getGlobalCommands(commandId) {
-    return this._call(`/commands${(commandId ? `/${commandId}` : "")}`);
-  }
-
-  createGlobalCommand(data) {
-    return this._call(`/commands`, data, "post");
-  }
-
-  editGlobalCommand(commandId, data) {
-    return this._call(`/commands/${commandId}`, data, "patch");
-  }
-
-  deleteGlobalCommand(commandId) {
-    return this._call(`/commands/${commandId}`, null, "delete");
-  }
-
-  /******************************
-  **  GUILD COMMAND ENDPOINTS  **
-  ******************************/
-
-  getGuildCommands(guildId, commandId) {
-    return this._call(`/guilds/${guildId}/commands${(commandId ? `/${commandId}` : "")}`);
-  }
-
-  createGuildCommand(guildId, data) {
-    return this._call(`/guilds/${guildId}/commands`, data, "post");
-  }
-
-  editGuildCommand(guildId, commandId, data) {
-    return this._call(`/guilds/${guildId}/commands/${commandId}`, data, "patch");
-  }
-
-  deleteGuildCommand(guildId, commandId) {
-    return this._call(`/guilds/${guildId}/commands/${commandId}`, null, "delete");
+  setCustomHandler(customId, handler) {
+    this.handlers.set(customId, handler);
+    return this;
   }
 }
 
@@ -429,8 +250,11 @@ class ModuleManager {
         }
 
         // Clear Interaction Handlers
-        for (let [interactionId, interaction] of this.interactions) {
-          if (interaction.file == filepath) this.interactions.delete(interactionId);
+        for (let [interactionId, interaction] of this.interactions.commands) {
+          if (interaction.file == filepath) this.interactions.commands.delete(interactionId);
+        }
+        for (let [customId, handler] of this.interactions.handlers) {
+          if (handler.file == filepath) this.enteractions.handlers.delete(customId);
         }
 
         // Unload
@@ -485,7 +309,8 @@ class ModuleManager {
     this.commands.aliases.clear();
 
     // Clear Interactions
-    this.interactions.clear();
+    this.interactions.commands.clear();
+    this.interactions.handlers.clear();
 
     return this;
   }
@@ -500,9 +325,8 @@ class AugurClient extends Client {
     const calculateIntents = require("./intents");
     const intents = calculateIntents(config.events, config.processDMs);
 
-    if (!options.clientOptions) options.clientOptions = {ws: { intents }};
-    else if (!options.clientOptions.ws) options.clientOptions.ws = { intents };
-    else if (!options.clientOptions.ws.intents) options.clientOptions.ws.intents = intents;
+    if (!options.clientOptions) options.clientOptions = { intents };
+    else if (!options.clientOptions.intents) options.clientOptions.intents = intents;
 
     super(options.clientOptions);
 
@@ -517,27 +341,25 @@ class AugurClient extends Client {
     // PRE-LOAD COMMANDS
     if (this.augurOptions?.commands) {
       const fs = require("fs");
-      let commandPath = path.resolve(require.main ? path.dirname(require.main.filename) : process.cwd(), this.augurOptions.commands);
-      try {
-        let commandFiles = fs.readdirSync(commandPath).filter(f => f.endsWith(".js"));
-        for (let command of commandFiles) {
-          try {
-            this.moduleHandler.register(path.resolve(commandPath, command));
-          } catch(error) {
-            this.errorHandler(error, `Error loading Augur Module ${command}`);
+      if (!Array.isArray(this.augurOptions.commands)) this.augurOptions.commands = [this.augurOptions.commands];
+      for (let commandPath of this.augurOptions.commands) {
+        commandPath = path.resolve(require.main ? path.dirname(require.main.filename) : process.cwd(), commandPath);
+        try {
+          let commandFiles = fs.readdirSync(commandPath).filter(f => f.endsWith(".js"));
+          for (let command of commandFiles) {
+            try {
+              this.moduleHandler.register(path.resolve(commandPath, command));
+            } catch(error) {
+              this.errorHandler(error, `Error loading Augur Module ${command}`);
+            }
           }
+        } catch(error) {
+          this.errorHandler(error, `Error loading module names from ${commandPath}`);
         }
-      } catch(error) {
-        this.errorHandler(error, `Error loading module names from ${commandPath}`);
       }
     }
 
-
     // SET EVENT HANDLERS
-    this.once("ready", async () => {
-      this.applicationId = (await this.fetchApplication()).id;
-    });
-
     this.on("ready", async () => {
       console.log(`${this.user.username} ${(this.shard ? ` Shard ${this.shard.id}` : "")} ready at: ${Date()}`);
       console.log(`Listening to ${this.channels.cache.size} channels in ${this.guilds.cache.size} servers.`);
@@ -552,9 +374,9 @@ class AugurClient extends Client {
       }
     });
 
-    this.on("message", async (msg) => {
+    this.on("messageCreate", async (msg) => {
       let halt = false;
-      if (this.events.has("message")) {
+      if (this.events.has("messageCreate")) {
         if (msg.partial) {
           try {
             await msg.fetch();
@@ -562,7 +384,7 @@ class AugurClient extends Client {
             this.errorHandler(error, "Augur Fetch Partial Message Error");
           }
         }
-        for (let [file, handler] of this.events.get("message")) {
+        for (let [file, handler] of this.events.get("messageCreate")) {
           try {
             halt = await handler(msg);
             if (halt) break;
@@ -625,16 +447,10 @@ class AugurClient extends Client {
         }
       }
       try {
-        if (!halt) await this.interactions.get(interaction.commandId)?.execute(interaction);
+        if (!halt && interaction.isCommand()) await this.interactions.commands.get(interaction.commandId)?.execute(interaction);
+        else if (!halt) await this.interactions.handlers.get(interaction.customId)?.execute(interaction);
       } catch(error) {
-        this.errorHandler(error, `Interaction Processing: ${interaction.commandId}`);
-      }
-    });
-
-    this.on("raw", async (data) => {
-      if (data.t == "INTERACTION_CREATE") {
-        const interaction = new DiscordInteraction(this, data.d);
-        this.emit("interactionCreate", interaction);
+        this.errorHandler(error, `Interaction Processing (${interaction.type}): ${interaction.commandId}`);
       }
     });
 
@@ -667,7 +483,7 @@ class AugurClient extends Client {
       });
     }
 
-    let events = (this.config?.events || []).filter(event => !["message", "messageUpdate", "interactionCreate", "messageReactionAdd", "ready"].includes(event));
+    let events = this.config?.events?.filter(event => !["messageCreate", "messageUpdate", "interactionCreate", "messageReactionAdd", "ready"].includes(event)) || [];
 
     for (let event of events) {
       this.on(event, async (...args) => {
@@ -706,13 +522,14 @@ class AugurClient extends Client {
 class AugurModule {
   constructor() {
     this.commands = [];
-    this.interactions = [];
+    this.interactionCommands = [];
+    this.interactionHandlers = [];
     this.events = new Collection();
     this.config = {};
   }
 
   addCommand(info) {
-    this.commands.push(new AugurCommand(info, this.client));
+    this.commands.push(new AugurCommand(info));
     return this;
   }
 
@@ -721,8 +538,13 @@ class AugurModule {
     return this;
   }
 
-  addInteraction(info) {
-    this.interactions.push(new AugurInteractionCommand(info, this.client));
+  addInteractionCommand(info) {
+    this.interactionCommands.push(new AugurInteractionCommand(info));
+    return this;
+  }
+
+  addInteractionHandler(info) {
+    this.interactionHandlers.push(new AugurInteractionHandler(info));
     return this;
   }
 
@@ -747,7 +569,7 @@ class AugurModule {
 ********************/
 
 class AugurCommand {
-  constructor(info, client) {
+  constructor(info) {
     if (!info.name || !info.process) {
       throw new Error("Commands must have the `name` and `process` properties");
     }
@@ -763,8 +585,6 @@ class AugurCommand {
     this.parseParams = info.parseParams ?? false;
     this.options = info.options ?? {};
     this.process = info.process;
-
-    this.client = client;
   }
 
   async execute(msg, args) {
@@ -778,12 +598,22 @@ class AugurCommand {
   }
 }
 
+async function permsFailed(interaction) {
+  try {
+    await interaction.reply({content: `${user}, you don't have the appropriate permissions for this interaction!`, ephemeral: true});
+    await wait(20000);
+    await interaction.deleteReply();
+  } catch(error) {
+    interaction.client.errorHandler(error, "Permissions Failed Message");
+  }
+}
+
 class AugurInteractionCommand {
-  constructor(info, client) {
-    if (!info.id || !info.process) {
-      throw new Error("Commands must have the `id` and `process` properties");
+  constructor(info) {
+    if (!info.commandId || !info.process) {
+      throw new Error("Commands must have the `commandId` and `process` properties");
     }
-    this.id = info.id;
+    this.commandId = info.commandId;
     this.name = info.name;
     this.syntax = info.syntax ?? "";
     this.description = info.description ?? `${this.name} ${this.syntax}`.trim();
@@ -794,16 +624,42 @@ class AugurInteractionCommand {
     this.permissions = info.permissions ?? (() => true);
     this.options = info.options ?? {};
     this.process = info.process;
-
-    this.client = client;
   }
 
   async execute(interaction) {
     try {
       if (!this.enabled) return;
       if (await this.permissions(interaction)) return await this.process(interaction);
-      let msg = await interaction.createResponse("❌");
-      msg.delete(5000).catch(error => this.client.errorHandler(error, "Remove Response After Failed Interaction Permissions Check"));
+      else return await permsFailed(interaction);
+    } catch(error) {
+      if (this.client) this.client.errorHandler(error, msg);
+      else console.error(error);
+    }
+  }
+}
+
+class AugurInteractionHandler {
+  constructor(info) {
+    if (!info.customId || !info.process) {
+      throw new Error("Commands must have the `id` and `process` properties");
+    }
+    this.customId = info.customId;
+    this.name = info.name;
+    this.once = info.once ?? false;
+    this.enabled = info.enabled ?? true;
+    this.permissions = info.permissions ?? (() => true);
+    this.process = info.process;
+  }
+
+  async execute(interaction) {
+    try {
+      if (!this.enabled) return;
+      if (await this.permissions(interaction)) {
+        if (this.once) interaction.client.interactions.handlers.delete(this.customId);
+        return await this.process(interaction);
+      } else {
+        permsFailed(interaction);
+      }
     } catch(error) {
       if (this.client) this.client.errorHandler(error, msg);
       else console.error(error);
@@ -819,9 +675,8 @@ module.exports = {
   AugurClient,
   AugurCommand,
   AugurInteractionCommand,
+  AugurModule,
   Module: AugurModule,
-  DiscordInteraction,
-  DiscordInteractionResponse,
   ClockworkManager,
   CommandManager,
   EventManager,

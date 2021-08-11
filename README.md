@@ -4,7 +4,7 @@ Augur is a Discord bot framework, utilizing the `discord.js` library.
 
 ### Change Log
 
-As of version 2.3.0, Augur uses Discord.js v12.2 and requires Node 14+.
+As of version 3.0.0, Augur uses Discord.js v13.1+ and requires Node 16.6+.
 
 2.3.0 introduces several new features:
 * AugurCommand.parseParams
@@ -61,7 +61,7 @@ The `options` object is optional, but may include:
 
 * `clientOptions` (object): An object containing options to be passed to the new Discord.Client(). Gateway intents are automatically calulated based on `config.events`. If you would like to override the calculated intents, provide your own intents as usual for Discord.js.
 
-* `commands` (string): A directory, relative to the base file, containing any command modules you wish to automatically load.
+* `commands` ([string]): A directory, relative to the base file, containing any command modules you wish to automatically load. Optionally, an array of directories may be provided.
 
 * `errorHandler`: A function accepting `error` and `message` as its arguments. This will replace the default error handling function.
 
@@ -83,7 +83,6 @@ Properties of the AugurClient class:
 
   A collection of commands, keyed by command name.
   * `aliases` (Collection): Collection of commands, keyed by alias.
-  * `client` (AugurClient): The client.
   * `commandCount` (Number): Integer of how many commands have been executed via `commands.execute()`.
   * `execute(commandName, message, suffix)` (async function): Execute a command function. Automatically called by the event handler.
   * `register(AugurModule)` (function): Registers commands from a Module. Automatically called by `client.moduleHandler.register(AugurModule)`.
@@ -97,19 +96,13 @@ Properties of the AugurClient class:
   A collection of event handlers, keyed by event then keyed by filepath.
   * `register(AugurModule)`: Registers event handlers from a Module. Automatically called by `client.moduleHandler.register(AugurModule)`.
 
-* `interactions` (InteractionManager extends Collection):
-
-  A collection of interaction event handlers for slash commands, keyed by interaction id.
-  **NOTE:** As of Augur 2.3.0, Augur does *not* handle creating the data object to create or edit an interaction. See the [Discord Developer Portal](https://discord.com/developers/docs/interactions/slash-commands#registering-a-command) for details on the data object required to register a command.
+* `interactions` (InteractionManager):
+  **NOTE:** As of Augur 3.0.0, Augur does *not* handle creating the data object to create or edit an interaction. See the [Discord Developer Portal](https://discord.com/developers/docs/interactions/slash-commands#registering-a-command) for details on the data object required to register a command.
+  * `commands` (Collection): Collection of interaction command handlers, keyed by interaction id.
+  * `handlers` (Collection): Collection of custom interaction command handlers (e.g. buttons or select menus), keyed by interaction id.
+  * `clearCustomHandler(customId)` (function): Removes a handler for interactions with custom interactions (e.g. buttons or select menus).
   * `register(AugurModule)` (function): Registers interaction commands from a Module. Automatically called by `client.moduleHandler.register(AugurModule)`.
-  * `createGlobalCommand(data)` (function): Registers a new global slash command with Discord.
-  * `createGuildCommand(guildId, data)` (function): Registers a new guild slash command with Discord.
-  * `deleteGlobalCommand(commandId)` (function): Deletes an existing global slash command with Discord.
-  * `deleteGuildCommand(guildId, commandId)` (function): Deletes an existing guild slash command with Discord.
-  * `editGlobalCommand(commandId, data)` (function): Edits an existing global slash command with Discord.
-  * `editGuildCommand(guildId, commandId, data)` (function): Edits an existing guild slash command with Discord.
-  * `getGlobalCommands(commandId)` (function): Fetches an array of all global slash commands (when no `commandId` provided) or a single global slash command (when `commandId` provided).
-  * `getGuildCommands(guildId, commandId)` (function): Fetches an array of all guild slash commands (when no `commandId` provided) or a single guild slash command (when `commandId` provided).
+  * `setCustomHandler(customId, handler)` (function): Registers a handler for interactions with custom interactions (e.g. buttons or select menus).
 
 * `moduleHandler` (ModuleManager):
 
