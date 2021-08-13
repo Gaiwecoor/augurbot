@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://bitbucket.org/Gaiwecoor/augurbot.git"
+    "url": "git+https://github.com/Gaiwecoor/augurbot.git"
   },
   "keywords": [
     "discord",
@@ -17,8 +17,8 @@
   ],
   "author": "Kevin \"Gaiwecoor\" Dixon",
   "license": "MIT",
-  "homepage": "https://bitbucket.org/Gaiwecoor/augurbot#readme",
+  "homepage": "https://github.com/Gaiwecoor/augurbot",
   "peerDependencies": {
-    "discord.js": "^13.0.1"
+    "discord.js": "^13.1.0"
   }
 }

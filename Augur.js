@@ -17,6 +17,18 @@ const DEFAULTS = {
     }
     console.error(error);
   },
+  interactionFailed: async (interaction, handlerMissing = true) => {
+    try {
+      await interaction.reply({
+        content: (handlerMissing ? "Sorry, I don't know how to handle that." : "You don't have permission to do that!"),
+        ephemeral: true
+      });
+      await wait(20000);
+      await interaction.deleteReply();
+    } catch(error) {
+      interaction.client.errorHandler(error, `Interaction Failed Message. ${handlerMissing ? "Handler is missing." : "Permissions failed."}${interaction.commandId ? ` (\`commandId\`: \`${interaction.commandId}\`)` : ""}${interaction.customId ? ` (\`customId\`: \`${interaction.customId}\`)` : ""}`);
+    }
+  },
   parse: (msg) => {
     let content = msg.content;
     let setPrefix = msg.client.config.prefix || "!";
@@ -39,10 +51,12 @@ const DEFAULTS = {
 
 function wait(t) {
   return new Promise((fulfill, reject) => {
-    setTimeout(() => {
-      fulfill();
-    }, t);
+    setTimeout(fulfill, t);
   });
+}
+
+async function fetchPartial(obj) {
+
 }
 
 /***************
@@ -254,7 +268,7 @@ class ModuleManager {
           if (interaction.file == filepath) this.interactions.commands.delete(interactionId);
         }
         for (let [customId, handler] of this.interactions.handlers) {
-          if (handler.file == filepath) this.enteractions.handlers.delete(customId);
+          if (handler.file == filepath) this.interactions.handlers.delete(customId);
         }
 
         // Unload
@@ -283,7 +297,7 @@ class ModuleManager {
     return this;
   }
 
-  unloadAll() {
+  async unloadAll() {
     // Remove all clockwork intervals
     for (const [file, interval] of this.clockwork) {
       clearInterval(interval);
@@ -298,7 +312,7 @@ class ModuleManager {
     // Unload all files
     for (const [file, unload] of this.unloads) {
       try {
-        unload();
+        await unload();
       } catch(error) {
         this.client.errorHandler(error, `Unload: ${file}`);
       }
@@ -336,6 +350,7 @@ class AugurClient extends Client {
     this.config = config;
     this.db = (this.config.db?.model ? require(path.resolve((require.main ? path.dirname(require.main.filename) : process.cwd()), this.config.db.model)) : null);
     this.errorHandler = this.augurOptions.errorHandler || DEFAULTS.errorHandler;
+    this.interactionFailed = this.augurOptions.interactionFailed || DEFAULTS.interactionFailed;
     this.parse = this.augurOptions.parse || DEFAULTS.parse;
 
     // PRE-LOAD COMMANDS
@@ -435,6 +450,7 @@ class AugurClient extends Client {
 
     this.on("interactionCreate", async (interaction) => {
       let halt = false;
+      await interaction.deferReply?.();
       if (this.events.has("interactionCreate")) {
         for (let [file, handler] of this.events.get("interactionCreate")) {
           try {
@@ -447,10 +463,15 @@ class AugurClient extends Client {
         }
       }
       try {
-        if (!halt && interaction.isCommand()) await this.interactions.commands.get(interaction.commandId)?.execute(interaction);
-        else if (!halt) await this.interactions.handlers.get(interaction.customId)?.execute(interaction);
+        if (!halt && (interaction.isCommand() || interaction.interaction.isContextMenu())) {
+          await this.interactions.commands.get(interaction.commandId)?.execute(interaction);
+        } else if (!halt) {
+          await this.interactions.handlers.get(interaction.customId)?.execute(interaction);
+        } else {
+          interaction.client.interactionFailed(interaction);
+        }
       } catch(error) {
-        this.errorHandler(error, `Interaction Processing (${interaction.type}): ${interaction.commandId}`);
+        this.errorHandler(error, interaction);
       }
     });
 
@@ -501,9 +522,9 @@ class AugurClient extends Client {
     }
   }
 
-  destroy() {
+  async destroy() {
     try {
-      this.moduleHandler.unloadAll()
+      await this.moduleHandler.unloadAll()
     } catch(error) {
       this.errorHandler(error, "Unload prior to destroying client.");
     }
@@ -598,16 +619,6 @@ class AugurCommand {
   }
 }
 
-async function permsFailed(interaction) {
-  try {
-    await interaction.reply({content: `${user}, you don't have the appropriate permissions for this interaction!`, ephemeral: true});
-    await wait(20000);
-    await interaction.deleteReply();
-  } catch(error) {
-    interaction.client.errorHandler(error, "Permissions Failed Message");
-  }
-}
-
 class AugurInteractionCommand {
   constructor(info) {
     if (!info.commandId || !info.process) {
@@ -630,10 +641,9 @@ class AugurInteractionCommand {
     try {
       if (!this.enabled) return;
       if (await this.permissions(interaction)) return await this.process(interaction);
-      else return await permsFailed(interaction);
+      else return await interaction.client.interactionFailed(interaction, false);
     } catch(error) {
-      if (this.client) this.client.errorHandler(error, msg);
-      else console.error(error);
+      this.client.errorHandler(error, interaction);
     }
   }
 }
@@ -658,11 +668,10 @@ class AugurInteractionHandler {
         if (this.once) interaction.client.interactions.handlers.delete(this.customId);
         return await this.process(interaction);
       } else {
-        permsFailed(interaction);
+        return await interaction.client.interactionFailed(interaction, false);
       }
     } catch(error) {
-      if (this.client) this.client.errorHandler(error, msg);
-      else console.error(error);
+      interaction.client.errorHandler(error, interaction);
     }
   }
 }

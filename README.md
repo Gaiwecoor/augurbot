@@ -65,6 +65,8 @@ The `options` object is optional, but may include:
 
 * `errorHandler`: A function accepting `error` and `message` as its arguments. This will replace the default error handling function.
 
+* `interactionFailed`: A function accepting an `interaction` and an optional `handlerMissing` flag as its arguments. This will replace the default "handler missing" and "missing permissions" function.
+
 * `parse` (async function): An asynchronous function accepting `message` as its argument, returning an object with `command` and `suffix` properties. This will replace the default parsing function. (Useful in case different servers use different prefixes, for example.)
 
 ### AugurClient Properties
