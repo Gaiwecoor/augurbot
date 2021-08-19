@@ -170,14 +170,33 @@ class InteractionManager {
     return this;
   }
 
-  register(load) {
+  async register(load) {
     for (const interaction of load.interactionCommands) {
       try {
         interaction.file = load.file;
+        if (!interaction.commandId && interaction.name && this.client.isReady()) {
+          try {
+            // Go hunting for the commandId
+            let filter = (i) => (i.name === interaction.name && i.guildId == interaction.guildId);
+            let command = this.client.application.commands.cache.find(filter);
+            if (!command) {
+              let options = interaction.guildId ? {guildId: interaction.guildId} : undefined;
+              await this.client.application.commands.fetch(options);
+              command = this.client.application.commands.cache.find(filter);
+            }
+            interaction.commandId = command?.id;
+          } catch(error) {
+            this.client.errorHandler(error, `Find commandId for "${interaction.name}" in ${load.file}`);
+          }
+        }
+        if (!interaction.commandId) {
+          this.client.errorHandler(new Error("Missing commandID"), `Interaction commandId not found. file: ${interaction.file}, name: ${interaction.name}, guildId: ${interaction.guildId}`);
+          return this;
+        }
         if (this.commands.has(interaction.commandId)) this.client.errorHandler(`Duplicate Interaction Id: ${interaction.commandId}`, `Interaction id ${interaction.commandId} already registered in \`${this.commands.get(interaction.commandId).file}\`. It is being overwritten.`);
         this.commands.set(interaction.commandId, interaction);
       } catch(error) {
-        this.client.errorHandler(error, `Register interaction "${interaction.name}" in guild ${interaction.guild} in ${load.file}`);
+        this.client.errorHandler(error, `Register interaction "${interaction.name}" in guild ${interaction.guildId} in ${load.file}`);
       }
     }
     for (const handler of load.interactionHandlers) {
@@ -233,8 +252,14 @@ class ModuleManager {
         // REGISTER CLOCKWORK
         this.clockwork.register(load);
 
-        // REGISTER INTERACTIONS
-        this.interactions.register(load);
+        // REGISTER INTERACTIONS *AFTER* READY EVENT
+        if (this.client.isReady()) {
+          this.interactions.register(load);
+        } else {
+          this.client.once("ready", () => {
+            this.interactions.register(load);
+          });
+        }
 
         // RUN INIT()
         load.init?.(data);
@@ -634,10 +659,11 @@ class AugurCommand {
 
 class AugurInteractionCommand {
   constructor(info) {
-    if (!info.commandId || !info.process) {
-      throw new Error("Commands must have the `commandId` and `process` properties");
+    if (!(info.commandId || info.name) || !info.process) {
+      throw new Error("Commands must have the `process` and either `commandId` or `name` properties");
     }
     this.commandId = info.commandId;
+    this.guildId = info.guildId;
     this.name = info.name;
     this.syntax = info.syntax ?? "";
     this.description = info.description ?? `${this.name} ${this.syntax}`.trim();
