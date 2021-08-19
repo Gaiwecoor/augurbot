@@ -17,16 +17,26 @@ const DEFAULTS = {
     }
     console.error(error);
   },
-  interactionFailed: async (interaction, handlerMissing = true) => {
+  interactionFailed: async (interaction, reason) => {
     try {
-      await interaction.reply({
-        content: (handlerMissing ? "Sorry, I don't know how to handle that." : "You don't have permission to do that!"),
-        ephemeral: true
-      });
-      await wait(20000);
-      await interaction.deleteReply();
+      let content;
+      switch (reason) {
+        case "HALTED":
+          content = "Something halted processing of this interaction.";
+          break;
+        case "HANDLER_MISSING":
+          content = "I don't know how to handle that!";
+          break;
+        case "PERMISSIONS_MISSING":
+          content = "You don't have permission to do that!";
+          break;
+        default:
+      }
+      if (content) {
+        await interaction.reply({content, ephemeral: true});
+      }
     } catch(error) {
-      interaction.client.errorHandler(error, `Interaction Failed Message. ${handlerMissing ? "Handler is missing." : "Permissions failed."}${interaction.commandId ? ` (\`commandId\`: \`${interaction.commandId}\`)` : ""}${interaction.customId ? ` (\`customId\`: \`${interaction.customId}\`)` : ""}`);
+      interaction.client.errorHandler(error, `Interaction Failed Message. (\`reason\`: \`${reason}\`)${interaction.commandId ? ` (\`commandId\`: \`${interaction.commandId}\`)` : ""}${interaction.customId ? ` (\`customId\`: \`${interaction.customId}\`)` : ""}`);
     }
   },
   parse: (msg) => {
@@ -450,7 +460,6 @@ class AugurClient extends Client {
 
     this.on("interactionCreate", async (interaction) => {
       let halt = false;
-      await interaction.deferReply?.();
       if (this.events.has("interactionCreate")) {
         for (let [file, handler] of this.events.get("interactionCreate")) {
           try {
@@ -463,12 +472,16 @@ class AugurClient extends Client {
         }
       }
       try {
-        if (!halt && (interaction.isCommand() || interaction.interaction.isContextMenu())) {
-          await this.interactions.commands.get(interaction.commandId)?.execute(interaction);
+        if (!halt && (interaction.isCommand() || interaction.isContextMenu())) {
+          // Run Commands and Context Menus
+          let command = this.interactions.commands.get(interaction.commandId);
+          if (command) await command.execute(interaction);
+          else interaction.client.interactionFailed(interaction, "HANDLER_MISSING");
         } else if (!halt) {
-          await this.interactions.handlers.get(interaction.customId)?.execute(interaction);
+          // Handle Buttons and Select Menus
+          this.interactions.handlers.get(interaction.customId)?.execute(interaction);
         } else {
-          interaction.client.interactionFailed(interaction);
+          interaction.client.interactionFailed(interaction, "HALTED");
         }
       } catch(error) {
         this.errorHandler(error, interaction);
@@ -641,9 +654,9 @@ class AugurInteractionCommand {
     try {
       if (!this.enabled) return;
       if (await this.permissions(interaction)) return await this.process(interaction);
-      else return await interaction.client.interactionFailed(interaction, false);
+      else return await interaction.client.interactionFailed(interaction, "PERMISSIONS_MISSING");
     } catch(error) {
-      this.client.errorHandler(error, interaction);
+      interaction.client.errorHandler(error, interaction);
     }
   }
 }
@@ -668,7 +681,7 @@ class AugurInteractionHandler {
         if (this.once) interaction.client.interactions.handlers.delete(this.customId);
         return await this.process(interaction);
       } else {
-        return await interaction.client.interactionFailed(interaction, false);
+        return await interaction.client.interactionFailed(interaction, "PERMISSIONS_MISSING");
       }
     } catch(error) {
       interaction.client.errorHandler(error, interaction);
