@@ -79,7 +79,7 @@ const DEFAULTS = {
           content = "This command can only be run in a DM!"
           break;
         case "OWNER_ONLY":
-          content = ""
+          content = "eee"
           break;
         default:
       }
@@ -810,11 +810,11 @@ class AugurCommand {
   async execute(msg, args) {
     try {
       if(!this.enabled) return;
-      if(!await this.permissions(msg)) return;
-      if(msg.member ? !msg.member.permissions.has(this.memberPermissions) : true) return await msg.client.commandFailed(msg, "MEMBER_PERMISSIONS");
-      if(msg.guild && !msg.guild.members.cache.get(msg.client).permissions.has(this.clientPermissions)) return msg.client.commandFailed("CLIENT_PERMISSIONS");
-      if(msg.guild ? !this.onlyGuild : this.onlyDM) return await msg.client.commandFailed(msg.guild ? "DM_ONLY" : "GUILD_ONLY");
-      if(msg.author.id !== msg.client.config.ownerId) return await msg.client.commandFailed("OWNER_ONLY");
+      else if(!await this.permissions(msg)) return;
+      else if(msg.member ? !msg.member.permissions.has(this.memberPermissions) : true) return await msg.client.commandFailed(msg, "MEMBER_PERMISSIONS");
+      else if(msg.guild && !msg.guild.members.cache.get(msg.client.user.id).permissions.has(this.clientPermissions)) return msg.client.commandFailed("CLIENT_PERMISSIONS");
+      else if(msg.guild ? this.onlyDM : this.onlyGuild) return await msg.client.commandFailed(msg.guild ? "DM_ONLY" : "GUILD_ONLY");
+      else if(this.onlyOwner && msg.author.id !== msg.client.config.ownerId) return await msg.client.commandFailed("OWNER_ONLY");
       else await this.process(msg, args);
     } catch(error) {
       if (this.client) this.client.errorHandler(error, msg);
@@ -877,9 +877,9 @@ class AugurInteractionCommand {
       if (!this.enabled) return;
       else if(!await this.permissions(int)) return await int.client.interactionFailed(int, "PERMISSIONS_MISSING")
       else if(int.member ? !int.member.permissions.has(this.memberPermissions) : true) return await int.client.interactionFailed(int, "PERMISSIONS_MISSING")
-      else if(int.guild && !int.guild.members.cache.get(int.client).permissions.has(this.clientPermissions)) return await int.client.interactionFailed(int, "CLIENT_PERMISSIONS_MISSING")
-      else if(int.guild ? !this.onlyGuild : this.onlyDM) return await int.client.interactionFailed(int, msg.guild ? "DM_ONLY" : "GUILD_ONLY");
-      else if(int.user.id !== int.client.config.ownerId) return await int.client.interactionFailed(int, "OWNER_ONLY");
+      else if(int.guild && !int.guild.members.cache.get(int.client.user.id).permissions.has(this.clientPermissions)) return await int.client.interactionFailed(int, "CLIENT_PERMISSIONS_MISSING")
+      else if(int.guild ? this.onlyDM : this.onlyGuild) return await int.client.interactionFailed(int, msg.guild ? "DM_ONLY" : "GUILD_ONLY");
+      else if(this.onlyOwner && int.user.id !== int.client.config.ownerId) return await int.client.interactionFailed(int, "OWNER_ONLY");
       else return await this.process(int);
     } catch(error) {
       int.client.errorHandler(error, int);
