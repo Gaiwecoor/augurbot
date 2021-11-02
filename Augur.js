@@ -6,10 +6,13 @@ const fs = require("fs"),
 /************************
 **  DEFAULT FUNCTIONS  **
 ************************/
+
 const DEFAULTS = {
+
   /**
    * @param {Error} error 
    * @param {Message|string} msg 
+   * @returns {undefined}
    */
   errorHandler: (error, msg) => {
     console.error(Date());
@@ -20,9 +23,11 @@ const DEFAULTS = {
     }
     console.error(error);
   },
+
   /**
    * @param {Discord.CommandInteraction} interaction 
    * @param {string} reason 
+   * @returns {Message|void}
    */
   interactionFailed: async (interaction, reason) => {
     try {
@@ -98,14 +103,13 @@ const DEFAULTS = {
    * @param {Message} msg
    * @returns {Parsed}
    */
-  parse: (msg) => {
+  parse: async (msg) => {
     let content = msg.content;
     /**@type {string} */
     let setPrefix = msg.client.config.prefix || "!";
     if (msg.author.bot) return null;
     for (let prefix of [setPrefix, `<@${msg.client.user.id}>`, `<@!${msg.client.user.id}>`]) {
       if (!content.startsWith(prefix)) continue;
-      let trimmed = content.substr(prefix.length).trim();
       let [command, ...params] = content.substr(prefix.length).split(" ");
       if (command) {
         return {
@@ -120,6 +124,7 @@ const DEFAULTS = {
 };
 /**
  * @param {number} t 
+ * @returns {Promise}
  */
 function wait(t) {
   return new Promise((fulfill, reject) => {
@@ -134,6 +139,25 @@ async function fetchPartial(obj) {
 /***************
 **  MANAGERS  **
 ***************/
+/**
+ * @typedef Load
+ * @property {config} config
+ * @property {any} db
+ * @property {AugurClient} client
+ * @property {string} file
+ * @property {[AugurInteractionCommand]} interactionCommands
+ */
+
+/**
+ * @typedef ClockworkCollection
+ * @type {Collection<string, function>}
+ * 
+ * @typedef CommandCollection
+ * @type {Collection<string, AugurCommand}
+ * 
+ * @typedef EventCollection
+ * @type {Collection<string, Collection<string, function>>}
+ */
 
 class ClockworkManager extends Collection {
   /**
@@ -143,8 +167,9 @@ class ClockworkManager extends Collection {
     super();
     this.client = client;
   }
+
   /**
-   * @param {AugurModule} load 
+   * @param {Load & AugurModule} load 
    */
   register(load) {
     if (load.clockwork) this.set(load.file, load.clockwork());
@@ -166,6 +191,7 @@ class CommandManager extends Collection {
   /**
    * @param {AugurClient&Client} client 
    */
+
   constructor(client) {
     super();
     this.client = client;
@@ -174,20 +200,19 @@ class CommandManager extends Collection {
     this.commandCount = 0;
   }
 /**
- * 
  * @param {Message} msg 
  * @param {Parsed} parsed 
+ * @returns {Promise}
  */
   async execute(msg, parsed) {
     try {
       let {command, suffix, params} = parsed;
+      /**@type {CommandCollection} */
       let commandGroup;
       if (this.has(command)) commandGroup = this;
       else if (this.aliases.has(command)) commandGroup = this.aliases;
       else return;
-
       this.commandCount++;
-      /**@type {AugurCommand} */
       let cmd = commandGroup.get(command);
       if (cmd.parseParams)
         return cmd.execute(msg, ...params);
@@ -198,8 +223,7 @@ class CommandManager extends Collection {
     }
   }
   /**
-   * 
-   * @param {AugurModule} load 
+   * @param {Load & AugurModule} load 
    */
   register(load) {
     for (const command of load.commands) {
@@ -223,11 +247,18 @@ class CommandManager extends Collection {
 }
 
 class EventManager extends Collection {
+
+  /**
+   * @param {AugurClient} client 
+   */
   constructor(client) {
     super();
     this.client = client;
   }
-
+  /**
+   * @param {Load & AugurModule} load 
+   * @returns {events}
+   */
   register(load) {
     if (load.events?.size > 0) {
       for (const [event, handler] of load.events) {
@@ -240,17 +271,25 @@ class EventManager extends Collection {
 }
 
 class InteractionManager {
+
+  /**@param {AugurClient} client*/
   constructor(client) {
+
+    /**@type {Collection<string, AugurInteractionCommand>} */
     this.commands = new Collection();
+    
+    /**@type {Collection<string,AugurInteractionHandler>} */
     this.handlers = new Collection();
     this.client = client;
   }
 
+  /**@param {string} customID @returns {this} */
   clearCustomHandler(customId) {
     this.handlers.delete(customId);
     return this;
   }
 
+  /**@param {Load & AugurModule} load */
   async register(load) {
     for (const interaction of load.interactionCommands) {
       try {
@@ -258,6 +297,7 @@ class InteractionManager {
         if (!interaction.commandId && interaction.name && this.client.isReady()) {
           try {
             // Go hunting for the commandId
+            /**@param {AugurInteractionCommand} i */
             let filter = (i) => (i.name === interaction.name && i.guildId == interaction.guildId);
             let command = this.client.application.commands.cache.find(filter);
             if (!command) {
@@ -271,11 +311,12 @@ class InteractionManager {
           }
         }
         if (!interaction.commandId) {
-          this.client.errorHandler(new Error("Missing commandID"), `Interaction commandId not found. file: ${interaction.file}, name: ${interaction.name}, guildId: ${interaction.guildId}`);
+          this.client.errorHandler(new Error("Missing commandID"), `Interaction commandId not found. file: ${load.file}, name: ${interaction.name}, guildId: ${interaction.guildId}`);
           return this;
         }
         if (this.commands.has(interaction.commandId)) this.client.errorHandler(`Duplicate Interaction Id: ${interaction.commandId}`, `Interaction id ${interaction.commandId} already registered in \`${this.commands.get(interaction.commandId).file}\`. It is being overwritten.`);
         this.commands.set(interaction.commandId, interaction);
+
       } catch(error) {
         this.client.errorHandler(error, `Register interaction "${interaction.name}" in guild ${interaction.guildId} in ${load.file}`);
       }
@@ -292,33 +333,52 @@ class InteractionManager {
     return this;
   }
 
-  setCustomHandler(customId, handler) {
+  /**
+   * @param {string} customId
+   * @param {AugurInteractionHandler} handler
+   * @returns {this}
+   */
+    setCustomHandler(customId, handler) {
     this.handlers.set(customId, handler);
     return this;
   }
 }
 
-class ModuleManager {
+class ModuleManager {  
+  /**
+   * @typedef cli
+   * @property {ClockworkManager} clockwork
+   * @property {CommandManager} commands
+   * @property {EventManager} events
+   * @property {InteractionManager} interactions
+   */
+  /**@param {cli & AugurClient} client*/
   constructor(client) {
     this.client = client;
+    /**@type {ClockworkCollection} */
     this.clockwork = new ClockworkManager(client);
     this.commands = new CommandManager(client);
+    /**@type {EventCollection} */
     this.events = new EventManager(client);
     this.interactions = new InteractionManager(client);
+    /**@type {Map<string, string>}*/
     this.unloads = new Map();
-
     client.clockwork = this.clockwork;
     client.commands = this.commands;
     client.events = this.events;
     client.interactions = this.interactions;
   }
-
+  /**
+   * @param {string} file
+   * @param {Function} data
+   * @returns {this}
+   */
   register(file, data) {
     if (file) {
       let filepath = path.resolve(file);
       try {
+        /**@type {Load & AugurModule}*/
         const load = require(filepath);
-
         load.config = this.client.config;
         load.db = this.client.db;
         load.client = this.client;
@@ -354,6 +414,7 @@ class ModuleManager {
     return this;
   }
 
+  /**@param {string} file */
   reload(file) {
     if (file) {
       let filepath = path.resolve(file);
@@ -367,6 +428,7 @@ class ModuleManager {
     return this;
   }
 
+  /**@param {string} file */
   unload(file) {
     if (file) {
       let filepath = path.resolve(file);
@@ -388,6 +450,7 @@ class ModuleManager {
         }
 
         // Unload
+        /**@type {string} */
         let unloadData;
         if (this.unloads.has(filepath)) {
           unloadData = this.unloads.get(filepath)();
@@ -452,23 +515,22 @@ class ModuleManager {
 
 class AugurClient extends Client {
   /**
-   * @typedef ClientOptions
-   * @property {function} errorHandler
+   * @typedef AugurOptions
+   * @property {function(Message)} parse
+   * @property {{}} utils
+   * @property {function(Error, Message|string)} errorHandler
+   * @property {{intents: Discord.Intents, allowedMentions: {}, partials: string[]}} clientOptions
+   * @property {string[]} commands
    * @property {function} interactionFailed
    * @property {function} commandFailed
-   * @property {function(Message)} parse
-   * @property {string} commands
-   * @property {{}} utils
-   * @property {{intents: Discord.Intents, allowedMentions: {}, partials: string[]}} clientOptions
    */
   /**
    * @param {require} config 
-   * @param {ClientOptions} options 
+   * @param {AugurOptions} options 
    */
   constructor(config, options = {}) {
     const calculateIntents = require("./intents");
     const intents = calculateIntents(config.events, config.processDMs);
-
     if (!options.clientOptions) options.clientOptions = { intents };
     else if (!options.clientOptions.intents) options.clientOptions.intents = intents;
 
@@ -478,9 +540,20 @@ class AugurClient extends Client {
 
     this.augurOptions = options;
     this.config = config;
+    /**@type {require|null} */
     this.db = (this.config.db?.model ? require(path.resolve((require.main ? path.dirname(require.main.filename) : process.cwd()), this.config.db.model)) : null);
+
+    /**@type {function(Error, Message|string)} */
     this.errorHandler = this.augurOptions.errorHandler || DEFAULTS.errorHandler;
+    /**
+     * @type {function(Discord.Interaction, string)}
+     * @returns {Message}
+     */
     this.interactionFailed = this.augurOptions.interactionFailed || DEFAULTS.interactionFailed;
+    /**
+     * @type {function(Message, string)}
+     * @returns {Message}
+     */
     this.commandFailed = this.augurOptions.commandFailed || DEFAULTS.commandFailed
     this.parse = this.augurOptions.parse || DEFAULTS.parse;
     this.utils = this.augurOptions.utils
@@ -609,6 +682,7 @@ class AugurClient extends Client {
       try {
         if (!halt && (interaction.isCommand() || interaction.isContextMenu())) {
           // Run Commands and Context Menus
+          /**@type {AugurInteractionCommand} */
           let command = this.interactions.commands.get(interaction.commandId);
           if (command) await command.execute(interaction);
           else interaction.client.interactionFailed(interaction, "HANDLER_MISSING");
@@ -712,9 +786,11 @@ class AugurModule {
     this.commands.push(new AugurCommand(info));
     return this;
   }
+  
   /**
    * @param {string} name 
    * @param {function} handler 
+   * @returns {this}
    */
   addEvent(name, handler) {
     this.events.set(name, handler);
