@@ -6,8 +6,11 @@ const fs = require("fs"),
 /************************
 **  DEFAULT FUNCTIONS  **
 ************************/
-
 const DEFAULTS = {
+  /**
+   * @param {Error} error 
+   * @param {Message|string} msg 
+   */
   errorHandler: (error, msg) => {
     console.error(Date());
     if (msg instanceof Message) {
@@ -17,6 +20,10 @@ const DEFAULTS = {
     }
     console.error(error);
   },
+  /**
+   * @param {Discord.CommandInteraction} interaction 
+   * @param {string} reason 
+   */
   interactionFailed: async (interaction, reason) => {
     try {
       let content;
@@ -30,6 +37,18 @@ const DEFAULTS = {
         case "PERMISSIONS_MISSING":
           content = "You don't have permission to do that!";
           break;
+        case "CLIENT_PERMISSIONS_MISSING":
+          content = "I don't have the permissions to do that!";
+          break;
+        case "GUILD_ONLY":
+          content = "This can only be used in a server!";
+          break;
+        case "DM_ONLY":
+          content = "This can only be used in a DM!";
+          break;
+        case "OWNER_ONLY":
+          content = ""
+          break;
         default:
       }
       if (content) {
@@ -39,8 +58,19 @@ const DEFAULTS = {
       interaction.client.errorHandler(error, `Interaction Failed Message. (\`reason\`: \`${reason}\`)${interaction.commandId ? ` (\`commandId\`: \`${interaction.commandId}\`)` : ""}${interaction.customId ? ` (\`customId\`: \`${interaction.customId}\`)` : ""}`);
     }
   },
+  /**
+   * @typedef Parsed
+   * @property {string} command
+   * @property {string} suffix
+   * @property {string[]} params
+   */
+  /**
+   * @param {Message} msg
+   * @returns {Parsed}
+   */
   parse: (msg) => {
     let content = msg.content;
+    /**@type {string} */
     let setPrefix = msg.client.config.prefix || "!";
     if (msg.author.bot) return null;
     for (let prefix of [setPrefix, `<@${msg.client.user.id}>`, `<@!${msg.client.user.id}>`]) {
@@ -58,7 +88,9 @@ const DEFAULTS = {
     return null;
   }
 };
-
+/**
+ * @param {number} t 
+ */
 function wait(t) {
   return new Promise((fulfill, reject) => {
     setTimeout(fulfill, t);
@@ -74,16 +106,23 @@ async function fetchPartial(obj) {
 ***************/
 
 class ClockworkManager extends Collection {
+  /**
+   * @param {AugurClient&Client} client 
+   */
   constructor(client) {
     super();
     this.client = client;
   }
-
+  /**
+   * @param {AugurModule} load 
+   */
   register(load) {
     if (load.clockwork) this.set(load.file, load.clockwork());
     return this;
   }
-
+  /**
+   * @param {string} filepath 
+   */
   unload(filepath) {
     if (this.has(filepath)) {
       clearInterval(this.get(filepath));
@@ -94,13 +133,21 @@ class ClockworkManager extends Collection {
 }
 
 class CommandManager extends Collection {
+  /**
+   * @param {AugurClient&Client} client 
+   */
   constructor(client) {
     super();
     this.client = client;
+    /**@type {Collection<string, AugurCommand>} */
     this.aliases = new Collection();
     this.commandCount = 0;
   }
-
+/**
+ * 
+ * @param {Message} msg 
+ * @param {Parsed} parsed 
+ */
   async execute(msg, parsed) {
     try {
       let {command, suffix, params} = parsed;
@@ -110,6 +157,7 @@ class CommandManager extends Collection {
       else return;
 
       this.commandCount++;
+      /**@type {AugurCommand} */
       let cmd = commandGroup.get(command);
       if (cmd.parseParams)
         return cmd.execute(msg, ...params);
@@ -119,7 +167,10 @@ class CommandManager extends Collection {
       return this.client.errorHandler(error, msg);
     }
   }
-
+  /**
+   * 
+   * @param {AugurModule} load 
+   */
   register(load) {
     for (const command of load.commands) {
       try {
@@ -370,6 +421,19 @@ class ModuleManager {
 *******************/
 
 class AugurClient extends Client {
+  /**
+   * @typedef ClientOptions
+   * @property {function} errorHandler
+   * @property {function} interactionFailed
+   * @property {function(Message)} parse
+   * @property {string} commands
+   * @property {{}} utils
+   * @property {{intents: Discord.Intents, allowedMentions: {}, partials: string[]}} clientOptions
+   */
+  /**
+   * @param {require} config 
+   * @param {ClientOptions} options 
+   */
   constructor(config, options = {}) {
     const calculateIntents = require("./intents");
     const intents = calculateIntents(config.events, config.processDMs);
@@ -387,6 +451,7 @@ class AugurClient extends Client {
     this.errorHandler = this.augurOptions.errorHandler || DEFAULTS.errorHandler;
     this.interactionFailed = this.augurOptions.interactionFailed || DEFAULTS.interactionFailed;
     this.parse = this.augurOptions.parse || DEFAULTS.parse;
+    this.utils = this.augurOptions.utils
 
     // PRE-LOAD COMMANDS
     if (this.augurOptions?.commands) {
@@ -424,7 +489,11 @@ class AugurClient extends Client {
       }
     });
 
-    this.on("messageCreate", async (msg) => {
+    this.on("messageCreate",
+    /**
+     * @param {Message} msg 
+     */
+    async (msg) => {
       let halt = false;
       if (this.events.has("messageCreate")) {
         if (msg.partial) {
@@ -453,7 +522,12 @@ class AugurClient extends Client {
       }
     });
 
-    this.on("messageUpdate", async (old, msg) => {
+    this.on("messageUpdate",
+    /**
+     * @param {Message} old
+     * @param {Message} msg
+     */
+    async (old, msg) => {
       if (old.content === msg.content) return;
       let halt = false;
       if (this.events.has("messageUpdate")) {
@@ -482,8 +556,12 @@ class AugurClient extends Client {
         this.errorHandler(error, msg);
       }
     });
-
-    this.on("interactionCreate", async (interaction) => {
+    
+    this.on("interactionCreate",
+    /**
+     * @param {Discord.Interaction} interaction
+     */
+    async (interaction) => {
       let halt = false;
       if (this.events.has("interactionCreate")) {
         for (let [file, handler] of this.events.get("interactionCreate")) {
@@ -514,7 +592,12 @@ class AugurClient extends Client {
     });
 
     if (this.config.events.includes("messageReactionAdd")) {
-      this.on("messageReactionAdd", async (reaction, user) => {
+      this.on("messageReactionAdd", 
+      /**
+       * @param {Discord.MessageReaction} reaction
+       * @param {Discord.User} user
+       */
+      async (reaction, user) => {
         if (this.events.get("messageReactionAdd")?.size > 0) {
           if (reaction.partial) {
             try {
@@ -541,7 +624,7 @@ class AugurClient extends Client {
         }
       });
     }
-
+    /**@type {string[]} */
     let events = this.config?.events?.filter(event => !["messageCreate", "messageUpdate", "interactionCreate", "messageReactionAdd", "ready"].includes(event)) || [];
 
     for (let event of events) {
@@ -580,33 +663,49 @@ class AugurClient extends Client {
 
 class AugurModule {
   constructor() {
+    /**@type {AugurCommand[]} */
     this.commands = [];
+    /**@type {AugurInteractionCommand[]} */
     this.interactionCommands = [];
+    /**@type {AugurInteractionHandler[]} */
     this.interactionHandlers = [];
+    /**@type {Collection<string, function>} */
     this.events = new Collection();
     this.config = {};
   }
-
+  /**
+   * @param {CommandInfo} info 
+   */
   addCommand(info) {
     this.commands.push(new AugurCommand(info));
     return this;
   }
-
+  /**
+   * @param {string} name 
+   * @param {function} handler 
+   */
   addEvent(name, handler) {
     this.events.set(name, handler);
     return this;
   }
-
+  /**
+   * @param {InteractionInfo} info 
+   */
   addInteractionCommand(info) {
     this.interactionCommands.push(new AugurInteractionCommand(info));
     return this;
   }
-
+  /**
+   * @param {InteractionHandlerInfo} info 
+   */
   addInteractionHandler(info) {
     this.interactionHandlers.push(new AugurInteractionHandler(info));
     return this;
   }
-
+  /**
+   * 
+   * @param {ClockworkManager} clockwork 
+   */
   setClockwork(clockwork) {
     this.clockwork = clockwork;
     return this;
@@ -626,8 +725,30 @@ class AugurModule {
 /********************
 **  COMMAND CLASS  **
 ********************/
-
+/**
+ * @typedef CommandInfo
+ * @property {string} name
+ * @property {string[]} aliases
+ * @property {string} syntax
+ * @property {string} description
+ * @property {string} info
+ * @property {string} category
+ * @property {boolean} hidden
+ * @property {boolean} enabled
+ * @property {boolean} parseParams
+ * @property {boolean} onlyOwner
+ * @property {boolean} onlyGuild
+ * @property {boolean} onlyDM
+ * @property {function(Message, string)} process
+ * @property {function(Message)} permissions
+ * @property {Discord.PermissionResolvable[]} memberPermissions
+ * @property {Discord.PermissionResolvable[]} clientPermissions
+ * @property {} options
+ */
 class AugurCommand {
+  /**
+   * @param {CommandInfo} info 
+   */
   constructor(info) {
     if (!info.name || !info.process) {
       throw new Error("Commands must have the `name` and `process` properties");
@@ -637,19 +758,32 @@ class AugurCommand {
     this.syntax = info.syntax ?? "";
     this.description = info.description ?? `${this.name} ${this.syntax}`.trim();
     this.info = info.info ?? this.description;
-    this.hidden = info.hidden ?? false;
     this.category = info.category;
+    this.hidden = info.hidden ?? false;
     this.enabled = info.enabled ?? true;
-    this.permissions = info.permissions ?? (() => true);
     this.parseParams = info.parseParams ?? false;
-    this.options = info.options ?? {};
+    this.onlyOwner = info.onlyOwner ?? false
+    this.onlyGuild = info.onlyGuild ?? false
+    this.onlyDM = info.onlyDM ?? false
     this.process = info.process;
+    this.permissions = info.permissions ?? (() => true);
+    this.memberPermissions = this.memberPermissions ?? []
+    this.clientPermissions = this.clientPermissions ?? []
+    this.options = info.options ?? {};
   }
-
+  /**
+   * @param {Message} msg 
+   * @param {string} args 
+   */
   async execute(msg, args) {
     try {
-      if (this.enabled && await this.permissions(msg)) return await this.process(msg, args);
-      else return;
+      if(!this.enabled) return;
+      if(!await this.permissions(msg)) return;
+      if(msg.member ? !msg.member.permissions.has(this.memberPermissions) : true) returnmsg.client.memberPermResponse(msg);
+      if(msg.guild && !msg.guild.members.cache.get(msg.client).permissions.has(this.clientPermissions)) return msg.client.clientPermResponse(msg);
+      if(msg.guild ? !this.onlyGuild : this.onlyDM) return;
+      if(msg.author.id !== msg.client.config.ownerId) return;
+      else await this.process(msg, args);
     } catch(error) {
       if (this.client) this.client.errorHandler(error, msg);
       else console.error(error);
@@ -657,7 +791,30 @@ class AugurCommand {
   }
 }
 
+/**
+ * @typedef InteractionInfo
+ * @property {string} commandId
+ * @property {string} guildId
+ * @property {string} name
+ * @property {string} syntax
+ * @property {string} description
+ * @property {string} info
+ * @property {string} category
+ * @property {boolean} hidden
+ * @property {boolean} enabled
+ * @property {boolean} onlyOwner
+ * @property {boolean} onlyGuild
+ * @property {boolean} onlyDM
+ * @property {function(Discord.CommandInteraction)} process
+ * @property {function(Discord.CommandInteraction)} permissions
+ * @property {Discord.PermissionResolvable[]} memberPermissions
+ * @property {Discord.PermissionResolvable[]} clientPermissions
+ * @property {} options
+ */
 class AugurInteractionCommand {
+  /**
+   * @param {InteractionInfo} info 
+   */
   constructor(info) {
     if (!(info.commandId || info.name) || !info.process) {
       throw new Error("Commands must have the `process` and either `commandId` or `name` properties");
@@ -668,26 +825,48 @@ class AugurInteractionCommand {
     this.syntax = info.syntax ?? "";
     this.description = info.description ?? `${this.name} ${this.syntax}`.trim();
     this.info = info.info ?? this.description;
-    this.hidden = info.hidden ?? false;
     this.category = info.category;
+    this.hidden = info.hidden ?? false;
     this.enabled = info.enabled ?? true;
-    this.permissions = info.permissions ?? (() => true);
-    this.options = info.options ?? {};
+    this.onlyOwner = info.onlyOwner ?? false;
+    this.onlyGuild = info.onlyGuild ?? false;
+    this.onlyDM = info.onlyDM ?? false;
     this.process = info.process;
+    this.permissions = info.permissions ?? (() => true);
+    this.memberPermissions = info.memberPermissions ?? []
+    this.clientPermissions = info.clientPermissions ?? []
+    this.options = info.options ?? {};
   }
-
-  async execute(interaction) {
+  /**
+   * @param {Discord.CommandInteraction} int 
+   */
+  async execute(int) {
     try {
       if (!this.enabled) return;
-      if (await this.permissions(interaction)) return await this.process(interaction);
-      else return await interaction.client.interactionFailed(interaction, "PERMISSIONS_MISSING");
+      else if(!await this.permissions(int)) return await int.client.interactionFailed(int, "PERMISSIONS_MISSING")
+      else if(int.member ? !int.member.permissions.has(this.memberPermissions) : true) return await int.client.interactionFailed(int, "PERMISSIONS_MISSING")
+      else if(int.guild && !int.guild.members.cache.get(int.client).permissions.has(this.clientPermissions)) return await int.client.interactionFailed(int, "CLIENT_PERMISSIONS_MISSING")
+      else if(int.guild ? !this.onlyGuild : this.onlyDM) return await int.client.interactionFailed(int, msg.guild ? "DM_ONLY" : "GUILD_ONLY");
+      else if(int.user.id !== int.client.config.ownerId) return await int.client.interactionFailed(int, "OWNER_ONLY");
+      else return await this.process(int);
     } catch(error) {
-      interaction.client.errorHandler(error, interaction);
+      int.client.errorHandler(error, int);
     }
   }
 }
-
+/**
+ * @typedef InteractionHandlerInfo
+ * @property {string} customId
+ * @property {string} name
+ * @property {boolean} once
+ * @property {boolean} enabled
+ * @property {function(Discord.Interaction)} permissions
+ * @property {function(Discord.Interaction)} process
+ */
 class AugurInteractionHandler {
+  /**
+   * @param {InteractionHandlerInfo} info 
+   */
   constructor(info) {
     if (!info.customId || !info.process) {
       throw new Error("Commands must have the `id` and `process` properties");
@@ -699,7 +878,9 @@ class AugurInteractionHandler {
     this.permissions = info.permissions ?? (() => true);
     this.process = info.process;
   }
-
+  /**
+   * @param {Discord.Interaction} interaction 
+   */
   async execute(interaction) {
     try {
       if (!this.enabled) return;
