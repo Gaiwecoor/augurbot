@@ -26,7 +26,7 @@ const DEFAULTS = {
    */
   interactionFailed: async (interaction, reason) => {
     try {
-      let content;
+      let content = reason;
       switch (reason) {
         case "HALTED":
           content = "Something halted processing of this interaction.";
@@ -56,6 +56,36 @@ const DEFAULTS = {
       }
     } catch(error) {
       interaction.client.errorHandler(error, `Interaction Failed Message. (\`reason\`: \`${reason}\`)${interaction.commandId ? ` (\`commandId\`: \`${interaction.commandId}\`)` : ""}${interaction.customId ? ` (\`customId\`: \`${interaction.customId}\`)` : ""}`);
+    }
+  },
+  /**
+   * @param {Message} msg
+   * @param {string} reason
+   */
+  commandFailed: async(msg, reason) => {
+    try{
+      let content
+      switch(reason) {
+        case "MEMBER_PERMISSIONS":
+          content = "You don't have permission to do that!"
+          break;
+        case "CLIENT_PERMISSIONS":
+          content = "I don't have the permissions to do that!"
+          break;
+        case "GUILD_ONLY":
+          content = "This command can only be run in a server!"
+          break;
+        case "DM_ONLY":
+          content = "This command can only be run in a DM!"
+          break;
+        case "OWNER_ONLY":
+          content = ""
+          break;
+        default:
+      }
+      if(content) await msg.reply({content})
+    } catch(error){
+      msg.client.errorHandler(error, msg)
     }
   },
   /**
@@ -425,6 +455,7 @@ class AugurClient extends Client {
    * @typedef ClientOptions
    * @property {function} errorHandler
    * @property {function} interactionFailed
+   * @property {function} commandFailed
    * @property {function(Message)} parse
    * @property {string} commands
    * @property {{}} utils
@@ -450,6 +481,7 @@ class AugurClient extends Client {
     this.db = (this.config.db?.model ? require(path.resolve((require.main ? path.dirname(require.main.filename) : process.cwd()), this.config.db.model)) : null);
     this.errorHandler = this.augurOptions.errorHandler || DEFAULTS.errorHandler;
     this.interactionFailed = this.augurOptions.interactionFailed || DEFAULTS.interactionFailed;
+    this.commandFailed = this.augurOptions.commandFailed || DEFAULTS.commandFailed
     this.parse = this.augurOptions.parse || DEFAULTS.parse;
     this.utils = this.augurOptions.utils
 
@@ -779,10 +811,10 @@ class AugurCommand {
     try {
       if(!this.enabled) return;
       if(!await this.permissions(msg)) return;
-      if(msg.member ? !msg.member.permissions.has(this.memberPermissions) : true) returnmsg.client.memberPermResponse(msg);
-      if(msg.guild && !msg.guild.members.cache.get(msg.client).permissions.has(this.clientPermissions)) return msg.client.clientPermResponse(msg);
-      if(msg.guild ? !this.onlyGuild : this.onlyDM) return;
-      if(msg.author.id !== msg.client.config.ownerId) return;
+      if(msg.member ? !msg.member.permissions.has(this.memberPermissions) : true) return await msg.client.commandFailed(msg, "MEMBER_PERMISSIONS");
+      if(msg.guild && !msg.guild.members.cache.get(msg.client).permissions.has(this.clientPermissions)) return msg.client.commandFailed("CLIENT_PERMISSIONS");
+      if(msg.guild ? !this.onlyGuild : this.onlyDM) return await msg.client.commandFailed(msg.guild ? "DM_ONLY" : "GUILD_ONLY");
+      if(msg.author.id !== msg.client.config.ownerId) return await msg.client.commandFailed("OWNER_ONLY");
       else await this.process(msg, args);
     } catch(error) {
       if (this.client) this.client.errorHandler(error, msg);
